@@ -5,7 +5,7 @@ Parser::Parser(std::vector<Token> tokens) : tokens(std::move(tokens)) {}
 
 Token& Parser::peek(int offset) {
     size_t idx = pos + offset;
-    if (idx >= tokens.size()) return tokens.back(); // EOF
+    if (idx >= tokens.size()) return tokens.back();
     return tokens[idx];
 }
 
@@ -38,17 +38,39 @@ Program Parser::parse() {
     return prog;
 }
 
+// ── Type helper ───────────────────────────────────────────────────────────────
+static std::string tokenToType(TokenKind k) {
+    switch (k) {
+        case TokenKind::TypeTabi3i:  return "int";
+        case TokenKind::Type3ouchri: return "float";
+        case TokenKind::Type5iyar:   return "bool";
+        case TokenKind::TypeFargh:   return "void";
+        case TokenKind::Type7arf:    return "char";
+        case TokenKind::TypeNass:    return "string";
+        default:                     return "";
+    }
+}
+
+static bool isTypeToken(TokenKind k) {
+    return k == TokenKind::TypeTabi3i  || k == TokenKind::Type3ouchri ||
+           k == TokenKind::Type5iyar   || k == TokenKind::TypeFargh   ||
+           k == TokenKind::Type7arf    || k == TokenKind::TypeNass;
+}
+
 // ── Statements ────────────────────────────────────────────────────────────────
 StmtPtr Parser::parseStmt() {
-    if (check(TokenKind::Achfa))     return parseVarDecl(false);
-    if (check(TokenKind::Ab9a_dayr)) return parseVarDecl(true);
-    if (check(TokenKind::Ektb))      return parsePrint();
-    if (check(TokenKind::A9ra))      return parseRead();
-    if (check(TokenKind::Idha))      return parseIf();
-    if (check(TokenKind::Ki_tkoon))  return parseWhile();
-    if (check(TokenKind::Madam))     return parseFor();
-    if (check(TokenKind::Raje3))     return parseReturn();
-    if (check(TokenKind::Fun))       return parseFuncDecl();
+    if (check(TokenKind::Dir))        return parseVarDecl(false);
+    if (check(TokenKind::Dima))       return parseVarDecl(true);
+    if (check(TokenKind::Ektb))       return parsePrint();
+    if (check(TokenKind::A9ra))       return parseRead();
+    if (check(TokenKind::Idha))       return parseIf();
+    if (check(TokenKind::Ab9a_dor))   return parseWhile();
+    if (check(TokenKind::Dor))        return parseFor();
+    if (check(TokenKind::Raja3))      return parseReturn();
+    if (check(TokenKind::Dalla))      return parseFuncDecl();
+    if (check(TokenKind::Bdl))        return parseSwitch();
+    if (check(TokenKind::Jarb))       return parseTryCatch();
+    if (check(TokenKind::Jibli))      return parseImport();
 
     // Expression statement
     auto expr = std::make_unique<ExprStmt>();
@@ -57,16 +79,18 @@ StmtPtr Parser::parseStmt() {
     return expr;
 }
 
-// achfa x : int = <expr>;   or   achfa x = <expr>;
+// dir x : tabi3i = <expr>;   or   dir x = <expr>;
 StmtPtr Parser::parseVarDecl(bool isConst) {
-    advance(); // consume achfa / ab9a_dayr
+    advance(); // consume dir / dima
     auto s = std::make_unique<VarDeclStmt>();
     s->isConst = isConst;
     s->name = expect(TokenKind::Identifier, "Expected variable name").lexeme;
 
-    // Optional type annotation
+    // Optional type annotation  : tabi3i
     if (match(TokenKind::Colon)) {
-        s->type = advance().lexeme; // int/float/bool/string
+        if (!isTypeToken(peek().kind))
+            throw std::runtime_error("Expected type name at line " + std::to_string(peek().line));
+        s->type = tokenToType(advance().kind);
     }
 
     expect(TokenKind::Eq, "Expected '=' in variable declaration");
@@ -101,7 +125,7 @@ StmtPtr Parser::parseRead() {
     return s;
 }
 
-// idha (cond) { ... } wla { ... }
+// idha (cond) { ... } idha_mknch { ... }
 StmtPtr Parser::parseIf() {
     advance(); // consume idha
     expect(TokenKind::LParen, "Expected '(' after idha");
@@ -109,15 +133,15 @@ StmtPtr Parser::parseIf() {
     s->condition = parseExpr();
     expect(TokenKind::RParen, "Expected ')'");
     s->thenBlock = parseBlock();
-    if (match(TokenKind::Wla))
+    if (match(TokenKind::Idha_mknch))
         s->elseBlock = parseBlock();
     return s;
 }
 
-// ki_tkoon (cond) { ... }
+// ab9a_dor (cond) { ... }
 StmtPtr Parser::parseWhile() {
-    advance(); // consume ki_tkoon
-    expect(TokenKind::LParen, "Expected '(' after ki_tkoon");
+    advance(); // consume ab9a_dor
+    expect(TokenKind::LParen, "Expected '(' after ab9a_dor");
     auto s = std::make_unique<WhileStmt>();
     s->condition = parseExpr();
     expect(TokenKind::RParen, "Expected ')'");
@@ -125,14 +149,13 @@ StmtPtr Parser::parseWhile() {
     return s;
 }
 
-// madam (init; cond; update) { ... }
+// dor (init; cond; update) { ... }
 StmtPtr Parser::parseFor() {
-    advance(); // consume madam
-    expect(TokenKind::LParen, "Expected '(' after madam");
+    advance(); // consume dor
+    expect(TokenKind::LParen, "Expected '(' after dor");
     auto s = std::make_unique<ForStmt>();
 
-    // init: either achfa or expr ;
-    if (check(TokenKind::Achfa))
+    if (check(TokenKind::Dir))
         s->init = parseVarDecl(false);
     else {
         auto es = std::make_unique<ExprStmt>();
@@ -149,19 +172,19 @@ StmtPtr Parser::parseFor() {
     return s;
 }
 
-// raje3 <expr>;
+// raja3 <expr>;
 StmtPtr Parser::parseReturn() {
-    advance(); // consume raje3
+    advance(); // consume raja3
     auto s = std::make_unique<ReturnStmt>();
     if (!check(TokenKind::Semicolon))
         s->value = parseExpr();
-    expect(TokenKind::Semicolon, "Expected ';' after raje3");
+    expect(TokenKind::Semicolon, "Expected ';' after raja3");
     return s;
 }
 
-// fun name(p: type, ...) -> type { ... }
+// dalla name(p: tabi3i, ...) -> tabi3i { ... }
 StmtPtr Parser::parseFuncDecl() {
-    advance(); // consume fun
+    advance(); // consume dalla
     auto s = std::make_unique<FuncDecl>();
     s->name = expect(TokenKind::Identifier, "Expected function name").lexeme;
     expect(TokenKind::LParen, "Expected '('");
@@ -169,15 +192,60 @@ StmtPtr Parser::parseFuncDecl() {
         FuncDecl::Param p;
         p.name = expect(TokenKind::Identifier, "Expected param name").lexeme;
         expect(TokenKind::Colon, "Expected ':' after param name");
-        p.type = advance().lexeme;
+        if (!isTypeToken(peek().kind))
+            throw std::runtime_error("Expected type name at line " + std::to_string(peek().line));
+        p.type = tokenToType(advance().kind);
         s->params.push_back(std::move(p));
         match(TokenKind::Comma);
     }
     expect(TokenKind::RParen, "Expected ')'");
     s->returnType = "void";
-    if (match(TokenKind::Arrow))
-        s->returnType = advance().lexeme;
+    if (match(TokenKind::Arrow)) {
+        if (!isTypeToken(peek().kind))
+            throw std::runtime_error("Expected return type at line " + std::to_string(peek().line));
+        s->returnType = tokenToType(advance().kind);
+    }
     s->body = parseBlock();
+    return s;
+}
+
+// bdl (expr) { khyr val: ... }
+StmtPtr Parser::parseSwitch() {
+    advance(); // consume bdl
+    expect(TokenKind::LParen, "Expected '(' after bdl");
+    auto s = std::make_unique<SwitchStmt>();
+    s->expr = parseExpr();
+    expect(TokenKind::RParen, "Expected ')'");
+    expect(TokenKind::LBrace, "Expected '{'");
+    while (!check(TokenKind::RBrace) && !check(TokenKind::Eof)) {
+        expect(TokenKind::Khyr, "Expected 'khyr' in bdl");
+        SwitchStmt::Case c;
+        c.value = parseExpr();
+        expect(TokenKind::Colon, "Expected ':' after khyr value");
+        while (!check(TokenKind::Khyr) && !check(TokenKind::RBrace) && !check(TokenKind::Eof))
+            c.body.push_back(parseStmt());
+        s->cases.push_back(std::move(c));
+    }
+    expect(TokenKind::RBrace, "Expected '}'");
+    return s;
+}
+
+// jarb { ... } ila_ghalt { ... }
+StmtPtr Parser::parseTryCatch() {
+    advance(); // consume jarb
+    auto s = std::make_unique<TryCatchStmt>();
+    s->tryBlock = parseBlock();
+    expect(TokenKind::Ila_ghalt, "Expected 'ila_ghalt' after jarb block");
+    s->catchBlock = parseBlock();
+    return s;
+}
+
+// jibli "module";
+StmtPtr Parser::parseImport() {
+    advance(); // consume jibli
+    auto s = std::make_unique<ImportStmt>();
+    s->path = expect(TokenKind::String, "Expected module path string after jibli").lexeme;
+    expect(TokenKind::Semicolon, "Expected ';'");
     return s;
 }
 
@@ -190,11 +258,10 @@ std::vector<StmtPtr> Parser::parseBlock() {
     return stmts;
 }
 
-// ── Expressions (Pratt precedence climb) ─────────────────────────────────────
-ExprPtr Parser::parseExpr()       { return parseAssign(); }
+// ── Expressions ───────────────────────────────────────────────────────────────
+ExprPtr Parser::parseExpr()   { return parseAssign(); }
 
 ExprPtr Parser::parseAssign() {
-    // Look-ahead: identifier =
     if (check(TokenKind::Identifier) && peek(1).kind == TokenKind::Eq) {
         auto name = advance().lexeme;
         advance(); // consume =
@@ -209,7 +276,7 @@ ExprPtr Parser::parseAssign() {
 
 ExprPtr Parser::parseOr() {
     auto lhs = parseAnd();
-    while (check(TokenKind::Or)) {
+    while (check(TokenKind::Wla)) {    // wla = or
         advance();
         auto rhs = parseAnd();
         auto e = std::make_unique<BinaryExpr>();
@@ -221,7 +288,7 @@ ExprPtr Parser::parseOr() {
 
 ExprPtr Parser::parseAnd() {
     auto lhs = parseEquality();
-    while (check(TokenKind::And)) {
+    while (check(TokenKind::W)) {      // w = and
         advance();
         auto rhs = parseEquality();
         auto e = std::make_unique<BinaryExpr>();
@@ -281,7 +348,7 @@ ExprPtr Parser::parseFactor() {
 }
 
 ExprPtr Parser::parseUnary() {
-    if (check(TokenKind::Not) || check(TokenKind::Minus)) {
+    if (check(TokenKind::Machi) || check(TokenKind::Minus)) {
         std::string op = advance().lexeme;
         auto e = std::make_unique<UnaryExpr>();
         e->op = op;
@@ -293,7 +360,6 @@ ExprPtr Parser::parseUnary() {
 
 ExprPtr Parser::parseCall() {
     auto callee = parsePrimary();
-    // function call: identifier already consumed as VarExpr; check for '('
     if (auto* v = dynamic_cast<VarExpr*>(callee.get())) {
         if (check(TokenKind::LParen)) {
             advance();
@@ -327,7 +393,7 @@ ExprPtr Parser::parsePrimary() {
         e->value = advance().lexeme;
         return e;
     }
-    if (check(TokenKind::S7i7)) {
+    if (check(TokenKind::Sa7)) {
         advance();
         auto e = std::make_unique<BoolLitExpr>();
         e->value = true;

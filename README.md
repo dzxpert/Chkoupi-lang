@@ -1,78 +1,106 @@
 # Chkoupi-lang 🇩🇿
 
-A vibe coded Algerian programming language made on LLVM.
+
+
+A vibe coded Algerian Darija programming language — compiles to native code via LLVM.
+
+📖 [Full Language Reference → DOCS.md](DOCS.md)
+
+## Quick Start
+
+```powershell
+chkoupi.exe myfile.dz          # run directly (JIT)
+chkoupi.exe myfile.dz --emit-ir          # print LLVM IR
+chkoupi.exe myfile.dz --emit-obj out.o   # compile to object file
+```
 
 ## Keywords
 
 | Darija | Meaning |
 |---|---|
-| `achfa x = ...` | declare variable (`let`) |
-| `ab9a_dayr x = ...` | declare constant (`const`) |
-| `ektb(...)` | print (`printf`) |
-| `a9ra(x)` | read input (`scanf`) |
+| `dir x = ...` | declare variable |
+| `dima x = ...` | declare constant |
+| `ektb(...)` | print |
+| `a9ra(x)` | read input |
 | `idha` | if |
-| `wla` | else |
-| `ki_tkoon` | while |
-| `madam` | for |
-| `s7i7` | true |
+| `idha_mknch` | else |
+| `ab9a_dor` | while |
+| `dor` | for |
+| `dalla` | function |
+| `raja3` | return |
+| `bdl` | switch |
+| `khyr` | case |
+| `jarb` | try |
+| `ila_ghalt` | except |
+| `jibli` | import |
+| `sa7` | true |
 | `ghalt` | false |
-| `fun` | function |
-| `raje3` | return |
 
 ## Types
 
-`int`, `float`, `bool`, `string`, `void`
+| Darija | Meaning |
+|---|---|
+| `tabi3i` | int |
+| `3ouchri` | float |
+| `5iyar` | bool |
+| `7arf` | char |
+| `nass` | string |
+| `fargh` | void |
 
-## Logical Operators
+## Operators
 
 | Darija | Meaning |
 |---|---|
 | `w` | and |
-| `wla_had` | or |
+| `wla` | or |
 | `machi` | not |
 
 ## Example
 
-```chk
-achfa x : int = 10;
+```dz
+dir x : tabi3i = 10;
+dima PI : 3ouchri = 3.14;
+
 idha (x > 5) {
     ektb("kbir!\n");
-} wla {
+} idha_mknch {
     ektb("sghir!\n");
 }
+
+ab9a_dor (x > 0) {
+    x = x - 1;
+}
+
+dor (dir i = 0; i < 3; i = i + 1) {
+    ektb("i = %lld\n", i);
+}
+
+dalla add(a: tabi3i, b: tabi3i) -> tabi3i {
+    raja3 a + b;
+}
+
+ektb("sum = %lld\n", add(3, 7));
 ```
 
 ## Building
 
 ### Prerequisites
 - CMake 3.20+
-- LLVM 17+ (with development headers)
-- A C++17 compiler (MSVC / Clang / GCC)
+- LLVM 17+ (dev headers)
+- C++17 compiler (MSVC / Clang / GCC)
 
-### Windows (MSVC + LLVM via winget)
+### Windows
 ```powershell
-winget install LLVM.LLVM
-cmake -B build -DLLVM_DIR="C:/Program Files/LLVM/lib/cmake/llvm"
+cmake -B build -G "Visual Studio 17 2022" -A x64 -DLLVM_DIR="D:/LLVM/lib/cmake/llvm"
 cmake --build build --config Release
 ```
 
 ### Linux / macOS
 ```bash
-sudo apt install llvm-17-dev  # or brew install llvm
+sudo apt install llvm-dev   # or brew install llvm
 cmake -B build
 cmake --build build
 ```
 
-## Usage
-
-```bash
-# Emit LLVM IR
-chkoupi examples/hello.chk --emit-ir
-
-# Compile to object file then link
-chkoupi examples/hello.chk --emit-obj hello.o
-clang hello.o -o hello
-./hello
-```
-___
-**made for copium**
+---
+**made as copium**

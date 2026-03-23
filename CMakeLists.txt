@@ -4,6 +4,11 @@ project(chkoupi CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# ── Static runtime: no VCRUNTIME/MSVCP DLL dependency for end users ────────────
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 # ── Find LLVM ──────────────────────────────────────────────────
 set(LLVM_DIR "D:/LLVM/lib/cmake/llvm" CACHE PATH "Path to LLVM cmake config")
 find_package(LLVM REQUIRED CONFIG)
@@ -33,6 +38,9 @@ llvm_map_components_to_libnames(LLVM_LIBS
     x86codegen
     x86asmparser
     x86info
+    orcjit
+    executionengine
+    mcjit
 )
 
 target_link_libraries(chkoupi PRIVATE ${LLVM_LIBS})

@@ -1,0 +1,42 @@
+// hello.chk - Chkoupi-lang full demo
+
+dir x : tabi3i = 42;
+dima PI : 3ouchri = 3.14;
+
+ektb("wlh ma ana a chef!\n");
+ektb("x = %lld\n", x);
+
+dir n : tabi3i = 0;
+ektb("hatli N: ");
+a9ra(n);
+
+idha (n > 0) {
+    ektb("n positive!\n");
+} idha_mknch {
+    ektb("n machi positive\n");
+}
+
+dir i : tabi3i = 0;
+ab9a_dor (i < 5) {
+    ektb("i = %lld\n", i);
+    i = i + 1;
+}
+
+dor (dir j = 0; j < 3; j = j + 1) {
+    ektb("j = %lld\n", j);
+}
+
+dalla add(a: tabi3i, b: tabi3i) -> tabi3i {
+    raja3 a + b;
+}
+
+dir result : tabi3i = add(10, 32);
+ektb("10 + 32 = %lld\n", result);
+
+// bdl example
+dir code : tabi3i = 2;
+bdl (code) {
+    khyr 1: ektb("wahd\n");
+    khyr 2: ektb("zouj\n");
+    khyr 3: ektb("tlata\n");
+}

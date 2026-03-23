@@ -20,26 +20,29 @@ private:
 
     // Statements
     StmtPtr parseStmt();
-    StmtPtr parseVarDecl(bool isConst);
-    StmtPtr parsePrint();
-    StmtPtr parseRead();
-    StmtPtr parseIf();
-    StmtPtr parseWhile();
-    StmtPtr parseFor();
-    StmtPtr parseReturn();
-    StmtPtr parseFuncDecl();
+    StmtPtr parseVarDecl(bool isConst);   // dir / dima
+    StmtPtr parsePrint();                  // ektb
+    StmtPtr parseRead();                   // a9ra
+    StmtPtr parseIf();                     // idha / idha_mknch
+    StmtPtr parseWhile();                  // ab9a_dor
+    StmtPtr parseFor();                    // dor
+    StmtPtr parseSwitch();                 // bdl / khyr
+    StmtPtr parseTryCatch();               // jarb / ila_ghalt
+    StmtPtr parseImport();                 // jibli
+    StmtPtr parseReturn();                 // raja3
+    StmtPtr parseFuncDecl();               // dalla
     std::vector<StmtPtr> parseBlock();
 
     // Expressions (Pratt-style precedence)
     ExprPtr parseExpr();
     ExprPtr parseAssign();
-    ExprPtr parseOr();
-    ExprPtr parseAnd();
+    ExprPtr parseOr();          // wla
+    ExprPtr parseAnd();         // w
     ExprPtr parseEquality();
     ExprPtr parseComparison();
     ExprPtr parseTerm();
     ExprPtr parseFactor();
-    ExprPtr parseUnary();
+    ExprPtr parseUnary();       // machi / -
     ExprPtr parseCall();
     ExprPtr parsePrimary();
 };

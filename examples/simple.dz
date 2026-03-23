@@ -1,0 +1,25 @@
+// simple.chk - updated with new Darija keywords
+
+dir x : tabi3i = 10;
+dir y : tabi3i = 20;
+
+ektb("tnak!\n");
+
+idha (x < y) {
+    ektb("x akbr mn y\n");
+} idha_mknch {
+    ektb("y asghr mn x\n");
+}
+
+dir i : tabi3i = 0;
+ab9a_dor (i < 3) {
+    ektb("i = %lld\n", i);
+    i = i + 1;
+}
+
+dalla add(a: tabi3i, b: tabi3i) -> tabi3i {
+    raja3 a + b;
+}
+
+dir result : tabi3i = add(5, 7);
+ektb("5 + 7 = %lld\n", result);

@@ -10,6 +10,9 @@
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/TargetParser/Host.h>
 #include <llvm/Support/CodeGen.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/ExecutionEngine/GenericValue.h>
+#include <llvm/ExecutionEngine/MCJIT.h>
 #include <stdexcept>
 
 Codegen::Codegen()
@@ -26,11 +29,12 @@ Codegen::Codegen()
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 llvm::Type* Codegen::getLLVMType(const std::string& t) {
-    if (t == "int"   || t == "") return llvm::Type::getInt64Ty(ctx);
-    if (t == "float")            return llvm::Type::getDoubleTy(ctx);
-    if (t == "bool")             return llvm::Type::getInt1Ty(ctx);
-    if (t == "string")           return llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx));
-    if (t == "void")             return llvm::Type::getVoidTy(ctx);
+    if (t == "int"    || t == "") return llvm::Type::getInt64Ty(ctx);
+    if (t == "float")             return llvm::Type::getDoubleTy(ctx);
+    if (t == "bool")              return llvm::Type::getInt1Ty(ctx);
+    if (t == "char")              return llvm::Type::getInt8Ty(ctx);
+    if (t == "string")            return llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx));
+    if (t == "void")              return llvm::Type::getVoidTy(ctx);
     throw std::runtime_error("Unknown type: " + t);
 }
 
@@ -88,6 +92,31 @@ void Codegen::dumpIR() const {
     module->print(llvm::outs(), nullptr);
 }
 
+// ── JIT execution ─────────────────────────────────────────────────────────────
+void Codegen::runJIT() {
+    // MCJIT takes ownership of the module — move it out
+    std::string errStr;
+    llvm::ExecutionEngine* ee =
+        llvm::EngineBuilder(std::move(module))
+            .setErrorStr(&errStr)
+            .setEngineKind(llvm::EngineKind::JIT)
+            .create();
+
+    if (!ee)
+        throw std::runtime_error("JIT setup failed: " + errStr);
+
+    ee->finalizeObject();
+
+    // Look up main() and call it
+    auto mainFn = (int(*)())ee->getFunctionAddress("main");
+    if (!mainFn)
+        throw std::runtime_error("Couldn't find 'main' function to execute");
+
+    int exitCode = mainFn();
+    delete ee;
+    std::exit(exitCode);
+}
+
 void Codegen::writeObjectFile(const std::string& path) const {
     std::string err;
     auto targetTriple = llvm::sys::getDefaultTargetTriple();
@@ -112,15 +141,18 @@ void Codegen::writeObjectFile(const std::string& path) const {
 
 // ── Statement codegen ─────────────────────────────────────────────────────────
 void Codegen::genStmt(const Stmt& stmt) {
-    if (auto* s = dynamic_cast<const VarDeclStmt*>(&stmt))  { genVarDecl(*s); return; }
-    if (auto* s = dynamic_cast<const PrintStmt*>(&stmt))    { genPrint(*s);   return; }
-    if (auto* s = dynamic_cast<const ReadStmt*>(&stmt))     { genRead(*s);    return; }
-    if (auto* s = dynamic_cast<const IfStmt*>(&stmt))       { genIf(*s);      return; }
-    if (auto* s = dynamic_cast<const WhileStmt*>(&stmt))    { genWhile(*s);   return; }
-    if (auto* s = dynamic_cast<const ForStmt*>(&stmt))      { genFor(*s);     return; }
-    if (auto* s = dynamic_cast<const ReturnStmt*>(&stmt))   { genReturn(*s);  return; }
-    if (auto* s = dynamic_cast<const FuncDecl*>(&stmt))     { genFunc(*s);    return; }
-    if (auto* s = dynamic_cast<const ExprStmt*>(&stmt))     { genExpr(*s->expr); return; }
+    if (auto* s = dynamic_cast<const VarDeclStmt*>(&stmt))    { genVarDecl(*s); return; }
+    if (auto* s = dynamic_cast<const PrintStmt*>(&stmt))      { genPrint(*s);   return; }
+    if (auto* s = dynamic_cast<const ReadStmt*>(&stmt))       { genRead(*s);    return; }
+    if (auto* s = dynamic_cast<const IfStmt*>(&stmt))         { genIf(*s);      return; }
+    if (auto* s = dynamic_cast<const WhileStmt*>(&stmt))      { genWhile(*s);   return; }
+    if (auto* s = dynamic_cast<const ForStmt*>(&stmt))        { genFor(*s);     return; }
+    if (auto* s = dynamic_cast<const SwitchStmt*>(&stmt))     { genSwitch(*s);  return; }
+    if (auto* s = dynamic_cast<const TryCatchStmt*>(&stmt))   { genTryCatch(*s); return; }
+    if (dynamic_cast<const ImportStmt*>(&stmt))               { /* resolved at link time */ return; }
+    if (auto* s = dynamic_cast<const ReturnStmt*>(&stmt))     { genReturn(*s);  return; }
+    if (auto* s = dynamic_cast<const FuncDecl*>(&stmt))       { genFunc(*s);    return; }
+    if (auto* s = dynamic_cast<const ExprStmt*>(&stmt))       { genExpr(*s->expr); return; }
     throw std::runtime_error("Unknown statement type");
 }
 
@@ -165,9 +197,9 @@ void Codegen::genIf(const IfStmt& s) {
     if (!cond->getType()->isIntegerTy(1))
         cond = builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
 
-    auto* thenBB = llvm::BasicBlock::Create(ctx, "idha.then", currentFunction);
-    auto* elseBB = llvm::BasicBlock::Create(ctx, "idha.wla",  currentFunction);
-    auto* mergeBB= llvm::BasicBlock::Create(ctx, "idha.end",  currentFunction);
+    auto* thenBB  = llvm::BasicBlock::Create(ctx, "idha.then",     currentFunction);
+    auto* elseBB  = llvm::BasicBlock::Create(ctx, "idha_mknch",    currentFunction);
+    auto* mergeBB = llvm::BasicBlock::Create(ctx, "idha.end",      currentFunction);
 
     builder.CreateCondBr(cond, thenBB, elseBB);
 
@@ -186,9 +218,9 @@ void Codegen::genIf(const IfStmt& s) {
 
 // ki_tkoon (cond) { ... }
 void Codegen::genWhile(const WhileStmt& s) {
-    auto* condBB = llvm::BasicBlock::Create(ctx, "ki_tkoon.cond", currentFunction);
-    auto* bodyBB = llvm::BasicBlock::Create(ctx, "ki_tkoon.body", currentFunction);
-    auto* endBB  = llvm::BasicBlock::Create(ctx, "ki_tkoon.end",  currentFunction);
+    auto* condBB = llvm::BasicBlock::Create(ctx, "ab9a_dor.cond", currentFunction);
+    auto* bodyBB = llvm::BasicBlock::Create(ctx, "ab9a_dor.body", currentFunction);
+    auto* endBB  = llvm::BasicBlock::Create(ctx, "ab9a_dor.end",  currentFunction);
 
     builder.CreateBr(condBB);
     builder.SetInsertPoint(condBB);
@@ -225,6 +257,55 @@ void Codegen::genFor(const ForStmt& s) {
     genExpr(*s.update); // update expression (e.g. i = i + 1)
     if (!builder.GetInsertBlock()->getTerminator())
         builder.CreateBr(condBB);
+
+    builder.SetInsertPoint(endBB);
+}
+
+// bdl (expr) { khyr val: ... }  →  LLVM switch instruction
+void Codegen::genSwitch(const SwitchStmt& s) {
+    llvm::Value* switchVal = genExpr(*s.expr);
+
+    auto* endBB = llvm::BasicBlock::Create(ctx, "bdl.end", currentFunction);
+    auto* defaultBB = endBB; // fall-through to end by default
+
+    auto* sw = builder.CreateSwitch(switchVal, defaultBB, (unsigned)s.cases.size());
+
+    for (auto& c : s.cases) {
+        llvm::Value* caseVal = genExpr(*c.value);
+        auto* constInt = llvm::dyn_cast<llvm::ConstantInt>(caseVal);
+        if (!constInt)
+            throw std::runtime_error("khyr value must be an integer constant");
+
+        auto* caseBB = llvm::BasicBlock::Create(ctx, "bdl.khyr", currentFunction);
+        sw->addCase(constInt, caseBB);
+
+        builder.SetInsertPoint(caseBB);
+        genBlock(c.body);
+        if (!builder.GetInsertBlock()->getTerminator())
+            builder.CreateBr(endBB);
+    }
+
+    builder.SetInsertPoint(endBB);
+}
+
+// jarb { ... } ila_ghalt { ... }  →  emits both blocks sequentially
+// (full exception support requires personality functions; this is a simplification)
+void Codegen::genTryCatch(const TryCatchStmt& s) {
+    auto* tryBB   = llvm::BasicBlock::Create(ctx, "jarb.try",    currentFunction);
+    auto* catchBB = llvm::BasicBlock::Create(ctx, "ila_ghalt",   currentFunction);
+    auto* endBB   = llvm::BasicBlock::Create(ctx, "jarb.end",    currentFunction);
+
+    builder.CreateBr(tryBB);
+
+    builder.SetInsertPoint(tryBB);
+    genBlock(s.tryBlock);
+    if (!builder.GetInsertBlock()->getTerminator())
+        builder.CreateBr(endBB);
+
+    builder.SetInsertPoint(catchBB);
+    genBlock(s.catchBlock);
+    if (!builder.GetInsertBlock()->getTerminator())
+        builder.CreateBr(endBB);
 
     builder.SetInsertPoint(endBB);
 }

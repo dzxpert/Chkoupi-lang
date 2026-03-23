@@ -14,6 +14,7 @@ public:
     void generate(const Program& prog);
     void dumpIR() const;
     void writeObjectFile(const std::string& path) const;
+    void runJIT();   // JIT compile + execute (default mode)
 
 private:
     llvm::LLVMContext                        ctx;
@@ -42,6 +43,8 @@ private:
     void     genIf(const IfStmt& s);
     void     genWhile(const WhileStmt& s);
     void     genFor(const ForStmt& s);
+    void     genSwitch(const SwitchStmt& s);
+    void     genTryCatch(const TryCatchStmt& s);
     void     genReturn(const ReturnStmt& s);
     void     genFunc(const FuncDecl& s);
     void     genBlock(const std::vector<StmtPtr>& block);

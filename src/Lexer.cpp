@@ -2,28 +2,44 @@
 #include <stdexcept>
 #include <unordered_map>
 
-// ─── Keyword table ────────────────────────────────────────────────────────────
+// ─── Keyword table (Darija) ───────────────────────────────────────────────────
 static const std::unordered_map<std::string, TokenKind> KEYWORDS = {
-    {"achfa",       TokenKind::Achfa},
-    {"ab9a_dayr",   TokenKind::Ab9a_dayr},
+    // Declarations
+    {"dir",         TokenKind::Dir},
+    {"dima",        TokenKind::Dima},
+    // Control flow
     {"idha",        TokenKind::Idha},
-    {"wla",         TokenKind::Wla},
-    {"ki_tkoon",    TokenKind::Ki_tkoon},
-    {"madam",       TokenKind::Madam},
-    {"s7i7",        TokenKind::S7i7},
+    {"idha_mknch",  TokenKind::Idha_mknch},
+    {"ab9a_dor",    TokenKind::Ab9a_dor},
+    {"dor",         TokenKind::Dor},
+    // Switch / case
+    {"bdl",         TokenKind::Bdl},
+    {"khyr",        TokenKind::Khyr},
+    // Exceptions
+    {"jarb",        TokenKind::Jarb},
+    {"ila_ghalt",   TokenKind::Ila_ghalt},
+    // Functions
+    {"dalla",       TokenKind::Dalla},
+    {"raja3",       TokenKind::Raja3},
+    // Import
+    {"jibli",       TokenKind::Jibli},
+    // Booleans
+    {"sa7",         TokenKind::Sa7},
     {"ghalt",       TokenKind::Ghalt},
-    {"fun",         TokenKind::Fun},
-    {"raje3",       TokenKind::Raje3},
-    {"void",        TokenKind::Void},
-    {"int",         TokenKind::TypeInt},
-    {"float",       TokenKind::TypeFloat},
-    {"bool",        TokenKind::TypeBool},
-    {"string",      TokenKind::TypeString},
+    // Types
+    {"tabi3i",      TokenKind::TypeTabi3i},
+    {"3ouchri",     TokenKind::Type3ouchri},
+    {"5iyar",       TokenKind::Type5iyar},
+    {"fargh",       TokenKind::TypeFargh},
+    {"7arf",        TokenKind::Type7arf},
+    {"nass",        TokenKind::TypeNass},
+    // Built-ins
     {"ektb",        TokenKind::Ektb},
     {"a9ra",        TokenKind::A9ra},
-    {"w",           TokenKind::And},       // logical and
-    {"wla_had",     TokenKind::Or},        // logical or
-    {"machi",       TokenKind::Not},       // logical not
+    // Logical operators
+    {"w",           TokenKind::W},
+    {"wla",         TokenKind::Wla},
+    {"machi",       TokenKind::Machi},
 };
 
 Lexer::Lexer(std::string source) : src(std::move(source)) {}
@@ -50,10 +66,8 @@ void Lexer::skipWhitespaceAndComments() {
         if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
             advance();
         } else if (c == '/' && peek(1) == '/') {
-            // Single-line comment
             while (pos < src.size() && peek() != '\n') advance();
         } else if (c == '/' && peek(1) == '*') {
-            // Multi-line comment
             advance(); advance();
             while (pos < src.size()) {
                 if (peek() == '*' && peek(1) == '/') { advance(); advance(); break; }
@@ -99,10 +113,17 @@ Token Lexer::readNumber() {
     return makeToken(isFloat ? TokenKind::Float : TokenKind::Integer, num);
 }
 
+// Identifiers can contain: letters, digits, and _ (including Arabic digits 3,5,7,9)
+static bool isIdentStart(char c) {
+    return std::isalpha(c) || c == '_';
+}
+static bool isIdentCont(char c) {
+    return std::isalnum(c) || c == '_';
+}
+
 Token Lexer::readIdentifierOrKeyword() {
     std::string ident;
-    // Allow letters, digits, underscore, and arabic-style numerals in identifiers (9, 7, etc.)
-    while (pos < src.size() && (std::isalnum(peek()) || peek() == '_')) {
+    while (pos < src.size() && isIdentCont(peek())) {
         ident += advance();
     }
     auto it = KEYWORDS.find(ident);
@@ -123,8 +144,14 @@ std::vector<Token> Lexer::tokenize() {
         char c = peek();
 
         if (c == '"') { tokens.push_back(readString()); continue; }
+        // Keywords starting with digits: 3ouchri, 5iyar, 7arf
+        // If a digit is immediately followed by a letter → it's a keyword, not a number
+        if (std::isdigit(c) && std::isalpha(peek(1))) {
+            tokens.push_back(readIdentifierOrKeyword());
+            continue;
+        }
         if (std::isdigit(c)) { tokens.push_back(readNumber()); continue; }
-        if (std::isalpha(c) || c == '_') { tokens.push_back(readIdentifierOrKeyword()); continue; }
+        if (isIdentStart(c)) { tokens.push_back(readIdentifierOrKeyword()); continue; }
 
         // Operators and punctuation
         advance();
@@ -159,6 +186,7 @@ std::vector<Token> Lexer::tokenize() {
             case ';': tokens.push_back(makeToken(TokenKind::Semicolon, ";")); break;
             case ':': tokens.push_back(makeToken(TokenKind::Colon,     ":")); break;
             case ',': tokens.push_back(makeToken(TokenKind::Comma,     ",")); break;
+            case '.': tokens.push_back(makeToken(TokenKind::Dot,       ".")); break;
             default:  tokens.push_back(makeToken(TokenKind::Unknown,   std::string(1, c))); break;
         }
     }

@@ -14,44 +14,28 @@ using StmtPtr = std::unique_ptr<Stmt>;
 
 // ── Expressions ──────────────────────────────────────────────────────────────
 
-struct Expr {
-    virtual ~Expr() = default;
-};
+struct Expr { virtual ~Expr() = default; };
 
-struct IntLitExpr : Expr {
-    long long value;
-};
+struct IntLitExpr    : Expr { long long  value; };
+struct FloatLitExpr  : Expr { double     value; };
+struct StringLitExpr : Expr { std::string value; };
+struct BoolLitExpr   : Expr { bool       value; };  // sa7 / ghalt
 
-struct FloatLitExpr : Expr {
-    double value;
-};
-
-struct StringLitExpr : Expr {
-    std::string value;
-};
-
-struct BoolLitExpr : Expr {
-    bool value;  // s7i7 / ghalt
-};
-
-struct VarExpr : Expr {
-    std::string name;
-};
+struct VarExpr : Expr { std::string name; };
 
 struct BinaryExpr : Expr {
     std::string op;   // "+", "-", "==", "and", "or", etc.
-    ExprPtr     lhs;
-    ExprPtr     rhs;
+    ExprPtr lhs, rhs;
 };
 
 struct UnaryExpr : Expr {
-    std::string op;   // "machi" (not), "-"
-    ExprPtr     operand;
+    std::string op;   // "machi", "-"
+    ExprPtr operand;
 };
 
 struct CallExpr : Expr {
-    std::string            callee;
-    std::vector<ExprPtr>   args;
+    std::string          callee;
+    std::vector<ExprPtr> args;
 };
 
 struct AssignExpr : Expr {
@@ -61,42 +45,40 @@ struct AssignExpr : Expr {
 
 // ── Statements ───────────────────────────────────────────────────────────────
 
-struct Stmt {
-    virtual ~Stmt() = default;
-};
+struct Stmt { virtual ~Stmt() = default; };
 
-// achfa x = <expr>   (let)
+// dir x = <expr>  /  dima x = <expr>
 struct VarDeclStmt : Stmt {
     std::string name;
-    std::string type;   // "int", "float", "bool", "string", ""=infer
-    bool        isConst;   // ab9a_dayr
+    std::string type;     // "int", "float", "bool", "string", "char", "void", ""=infer
+    bool        isConst;  // dima
     ExprPtr     init;
 };
 
-// ektb(<expr>, ...)   (printf)
+// ektb(...)   →  printf
 struct PrintStmt : Stmt {
     std::vector<ExprPtr> args;
 };
 
-// a9ra(<var>)   (scanf)
+// a9ra(x)   →  scanf
 struct ReadStmt : Stmt {
     std::string varName;
 };
 
-// idha (...) { ... } wla { ... }
+// idha (...) { ... } idha_mknch { ... }
 struct IfStmt : Stmt {
-    ExprPtr             condition;
+    ExprPtr              condition;
     std::vector<StmtPtr> thenBlock;
     std::vector<StmtPtr> elseBlock;
 };
 
-// ki_tkoon (...) { ... }
+// ab9a_dor (...) { ... }
 struct WhileStmt : Stmt {
     ExprPtr              condition;
     std::vector<StmtPtr> body;
 };
 
-// madam (init; cond; update) { ... }
+// dor (init; cond; update) { ... }
 struct ForStmt : Stmt {
     StmtPtr              init;
     ExprPtr              condition;
@@ -104,7 +86,28 @@ struct ForStmt : Stmt {
     std::vector<StmtPtr> body;
 };
 
-// raje3 <expr>
+// bdl (expr) { khyr val: ... }
+struct SwitchStmt : Stmt {
+    struct Case {
+        ExprPtr              value;
+        std::vector<StmtPtr> body;
+    };
+    ExprPtr          expr;
+    std::vector<Case> cases;
+};
+
+// jarb { ... } ila_ghalt { ... }
+struct TryCatchStmt : Stmt {
+    std::vector<StmtPtr> tryBlock;
+    std::vector<StmtPtr> catchBlock;
+};
+
+// jibli "path";
+struct ImportStmt : Stmt {
+    std::string path;
+};
+
+// raja3 <expr>
 struct ReturnStmt : Stmt {
     ExprPtr value;
 };
@@ -114,7 +117,7 @@ struct ExprStmt : Stmt {
     ExprPtr expr;
 };
 
-// fun name(params) -> type { body }
+// dalla name(params) -> type { body }
 struct FuncDecl : Stmt {
     struct Param { std::string name, type; };
     std::string          name;

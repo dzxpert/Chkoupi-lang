@@ -1,23 +1,27 @@
-# Chkoupi-lang 🇩🇿
+# Chkoupi-lang :flag_dz:
 
 A vibe coded Algerian programming language made on LLVM.
 
 ## Keywords
 
-| Darija | Meaning |
-|---|---|
-| `achfa x = ...` | declare variable (`let`) |
+| Darija              | Meaning                    |
+| ------------------- | -------------------------- |
+| `achfa x = ...`     | declare variable (`let`)   |
 | `ab9a_dayr x = ...` | declare constant (`const`) |
-| `ektb(...)` | print (`printf`) |
-| `a9ra(x)` | read input (`scanf`) |
-| `idha` | if |
-| `wla` | else |
-| `ki_tkoon` | while |
-| `madam` | for |
-| `s7i7` | true |
-| `ghalt` | false |
-| `fun` | function |
-| `raje3` | return |
+| `ektb(...)`         | print (`printf`)           |
+| `a9ra(x)`           | read input (`scanf`)       |
+| `idha`              | if                         |
+| `ila_makanch`       | else                       |
+| `ab9a_dor`          | while                      |
+| `dor`               | for                        |
+| `sa7`               | true                       |
+| `ghalt`             | false                      |
+| `fun`               | function                   |
+| `arja3`             | return                     |
+| `jib`               | import                     |
+| `jarb`              | try                        |
+| `ila_ghalt`         | except                     |
+| `khyr`              | case                       |
 
 ## Types
 
@@ -25,11 +29,11 @@ A vibe coded Algerian programming language made on LLVM.
 
 ## Logical Operators
 
-| Darija | Meaning |
-|---|---|
-| `w` | and |
-| `wla_had` | or |
-| `machi` | not |
+| Darija  | Meaning |
+| ------- | ------- |
+| `w`     | and     |
+| `wla`   | or      |
+| `machi` | not     |
 
 ## Example
 
@@ -37,7 +41,7 @@ A vibe coded Algerian programming language made on LLVM.
 achfa x : int = 10;
 idha (x > 5) {
     ektb("kbir!\n");
-} wla {
+} ila_makanch {
     ektb("sghir!\n");
 }
 ```

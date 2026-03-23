@@ -7,7 +7,7 @@ achfa x : int = 42;
 ab9a_dayr PI : float = 3.14;
 
 // Print a string
-ektb("mrhba bik f chkoupi!\n");
+ektb("tnak!\n");
 
 // Print a variable
 ektb("x = %lld\n", x);

@@ -1,0 +1,25 @@
+// simple.chk — minimal Chkoupi-lang test
+
+achfa x : int = 10;
+achfa y : int = 20;
+
+ektb("*ebi!\n");
+
+idha (x < y) {
+    ektb("x akbr mn y\n");
+} wla {
+    ektb("y akbr mn x\n");
+}
+
+achfa i : int = 0;
+ki_tkoon (i < 3) {
+    ektb("i = %lld\n", i);
+    i = i + 1;
+}
+
+fun add(a: int, b: int) -> int {
+    raje3 a + b;
+}
+
+achfa result : int = add(5, 7);
+ektb("5 + 7 = %lld\n", result);

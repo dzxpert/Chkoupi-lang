@@ -1,0 +1,44 @@
+// hello.chk — Chkoupi-lang example program
+
+// Declare a variable
+achfa x : int = 42;
+
+// Declare a constant
+ab9a_dayr PI : float = 3.14;
+
+// Print a string
+ektb("mrhba bik f chkoupi!\n");
+
+// Print a variable
+ektb("x = %lld\n", x);
+
+// Read input
+achfa n : int = 0;
+a9ra(n);
+
+// If / else
+idha (n > 0) {
+    ektb("n positive!\n");
+} wla {
+    ektb("n machi positive\n");
+}
+
+// While loop
+achfa i : int = 0;
+ki_tkoon (i < 5) {
+    ektb("i = %lld\n", i);
+    i = i + 1;
+}
+
+// For loop
+madam (achfa j = 0; j < 3; j = j + 1) {
+    ektb("j = %lld\n", j);
+}
+
+// Function definition
+fun add(a: int, b: int) -> int {
+    raje3 a + b;
+}
+
+achfa result : int = add(10, 32);
+ektb("10 + 32 = %lld\n", result);

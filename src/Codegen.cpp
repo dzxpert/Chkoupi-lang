@@ -1,0 +1,348 @@
+#include "Codegen.h"
+#include "AST.h"
+#include <llvm/IR/Verifier.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
+#include <llvm/MC/TargetRegistry.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/TargetParser/Host.h>
+#include <llvm/Support/CodeGen.h>
+#include <stdexcept>
+
+Codegen::Codegen()
+    : builder(ctx),
+      module(std::make_unique<llvm::Module>("chkoupi_module", ctx))
+{
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmParser();
+    llvm::InitializeNativeTargetAsmPrinter();
+
+    declarePrintf();
+    declareScanf();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+llvm::Type* Codegen::getLLVMType(const std::string& t) {
+    if (t == "int"   || t == "") return llvm::Type::getInt64Ty(ctx);
+    if (t == "float")            return llvm::Type::getDoubleTy(ctx);
+    if (t == "bool")             return llvm::Type::getInt1Ty(ctx);
+    if (t == "string")           return llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx));
+    if (t == "void")             return llvm::Type::getVoidTy(ctx);
+    throw std::runtime_error("Unknown type: " + t);
+}
+
+llvm::AllocaInst* Codegen::createEntryAlloca(llvm::Function* fn,
+                                               const std::string& name,
+                                               llvm::Type* ty) {
+    llvm::IRBuilder<> tmp(&fn->getEntryBlock(), fn->getEntryBlock().begin());
+    return tmp.CreateAlloca(ty, nullptr, name);
+}
+
+void Codegen::declarePrintf() {
+    llvm::FunctionType* ft = llvm::FunctionType::get(
+        llvm::Type::getInt32Ty(ctx),
+        {llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx))},
+        true); // varargs
+    llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "printf", module.get());
+}
+
+void Codegen::declareScanf() {
+    llvm::FunctionType* ft = llvm::FunctionType::get(
+        llvm::Type::getInt32Ty(ctx),
+        {llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx))},
+        true);
+    llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "scanf", module.get());
+}
+
+// ── Top-level ─────────────────────────────────────────────────────────────────
+void Codegen::generate(const Program& prog) {
+    // Create implicit main() if there is no explicit fun main
+    bool hasMain = false;
+    for (auto& s : prog.stmts)
+        if (auto* f = dynamic_cast<const FuncDecl*>(s.get()))
+            if (f->name == "main") { hasMain = true; break; }
+
+    llvm::Function* mainFn = nullptr;
+    if (!hasMain) {
+        auto* ft = llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), false);
+        mainFn = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "main", module.get());
+        auto* bb = llvm::BasicBlock::Create(ctx, "entry", mainFn);
+        builder.SetInsertPoint(bb);
+        currentFunction = mainFn;
+    }
+
+    for (auto& s : prog.stmts)
+        genStmt(*s);
+
+    if (!hasMain) {
+        builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 0));
+    }
+
+    llvm::verifyModule(*module, &llvm::errs());
+}
+
+void Codegen::dumpIR() const {
+    module->print(llvm::outs(), nullptr);
+}
+
+void Codegen::writeObjectFile(const std::string& path) const {
+    std::string err;
+    auto targetTriple = llvm::sys::getDefaultTargetTriple();
+    auto* target = llvm::TargetRegistry::lookupTarget(targetTriple, err);
+    if (!target) throw std::runtime_error("Target lookup failed: " + err);
+
+    llvm::TargetOptions opt;
+    auto* tm = target->createTargetMachine(targetTriple, "generic", "", opt, llvm::Reloc::PIC_);
+    module->setDataLayout(tm->createDataLayout());
+    module->setTargetTriple(targetTriple);
+
+    std::error_code ec;
+    llvm::raw_fd_ostream dest(path, ec, llvm::sys::fs::OF_None);
+    if (ec) throw std::runtime_error("Could not open file: " + ec.message());
+
+    llvm::legacy::PassManager pm;
+    if (tm->addPassesToEmitFile(pm, dest, nullptr, llvm::CodeGenFileType::ObjectFile))
+        throw std::runtime_error("Target cannot emit object file");
+    pm.run(*module);
+    dest.flush();
+}
+
+// ── Statement codegen ─────────────────────────────────────────────────────────
+void Codegen::genStmt(const Stmt& stmt) {
+    if (auto* s = dynamic_cast<const VarDeclStmt*>(&stmt))  { genVarDecl(*s); return; }
+    if (auto* s = dynamic_cast<const PrintStmt*>(&stmt))    { genPrint(*s);   return; }
+    if (auto* s = dynamic_cast<const ReadStmt*>(&stmt))     { genRead(*s);    return; }
+    if (auto* s = dynamic_cast<const IfStmt*>(&stmt))       { genIf(*s);      return; }
+    if (auto* s = dynamic_cast<const WhileStmt*>(&stmt))    { genWhile(*s);   return; }
+    if (auto* s = dynamic_cast<const ForStmt*>(&stmt))      { genFor(*s);     return; }
+    if (auto* s = dynamic_cast<const ReturnStmt*>(&stmt))   { genReturn(*s);  return; }
+    if (auto* s = dynamic_cast<const FuncDecl*>(&stmt))     { genFunc(*s);    return; }
+    if (auto* s = dynamic_cast<const ExprStmt*>(&stmt))     { genExpr(*s->expr); return; }
+    throw std::runtime_error("Unknown statement type");
+}
+
+void Codegen::genBlock(const std::vector<StmtPtr>& block) {
+    for (auto& s : block) genStmt(*s);
+}
+
+void Codegen::genVarDecl(const VarDeclStmt& s) {
+    llvm::Value* initVal = genExpr(*s.init);
+    llvm::Type*  ty      = initVal->getType();
+    auto* alloca = createEntryAlloca(currentFunction, s.name, ty);
+    builder.CreateStore(initVal, alloca);
+    namedValues[s.name] = alloca;
+    constFlags[s.name]  = s.isConst;
+}
+
+// ektb("fmt", args...)  →  printf
+void Codegen::genPrint(const PrintStmt& s) {
+    llvm::Function* printfFn = module->getFunction("printf");
+    std::vector<llvm::Value*> args;
+    for (auto& a : s.args) args.push_back(genExpr(*a));
+    builder.CreateCall(printfFn, args);
+}
+
+// a9ra(x)  →  scanf("%d", &x)
+void Codegen::genRead(const ReadStmt& s) {
+    llvm::Function* scanfFn = module->getFunction("scanf");
+    auto it = namedValues.find(s.varName);
+    if (it == namedValues.end())
+        throw std::runtime_error("Undefined variable: " + s.varName);
+
+    // Infer format from type
+    llvm::Type* ty = it->second->getAllocatedType();
+    std::string fmt = ty->isDoubleTy() ? "%lf" : (ty->isIntegerTy(1) ? "%d" : "%lld");
+    llvm::Value* fmtStr = builder.CreateGlobalStringPtr(fmt);
+    builder.CreateCall(scanfFn, {fmtStr, it->second});
+}
+
+// idha (cond) { ... } wla { ... }
+void Codegen::genIf(const IfStmt& s) {
+    llvm::Value* cond = genExpr(*s.condition);
+    if (!cond->getType()->isIntegerTy(1))
+        cond = builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
+
+    auto* thenBB = llvm::BasicBlock::Create(ctx, "idha.then", currentFunction);
+    auto* elseBB = llvm::BasicBlock::Create(ctx, "idha.wla",  currentFunction);
+    auto* mergeBB= llvm::BasicBlock::Create(ctx, "idha.end",  currentFunction);
+
+    builder.CreateCondBr(cond, thenBB, elseBB);
+
+    builder.SetInsertPoint(thenBB);
+    genBlock(s.thenBlock);
+    if (!builder.GetInsertBlock()->getTerminator())
+        builder.CreateBr(mergeBB);
+
+    builder.SetInsertPoint(elseBB);
+    genBlock(s.elseBlock);
+    if (!builder.GetInsertBlock()->getTerminator())
+        builder.CreateBr(mergeBB);
+
+    builder.SetInsertPoint(mergeBB);
+}
+
+// ki_tkoon (cond) { ... }
+void Codegen::genWhile(const WhileStmt& s) {
+    auto* condBB = llvm::BasicBlock::Create(ctx, "ki_tkoon.cond", currentFunction);
+    auto* bodyBB = llvm::BasicBlock::Create(ctx, "ki_tkoon.body", currentFunction);
+    auto* endBB  = llvm::BasicBlock::Create(ctx, "ki_tkoon.end",  currentFunction);
+
+    builder.CreateBr(condBB);
+    builder.SetInsertPoint(condBB);
+    llvm::Value* cond = genExpr(*s.condition);
+    if (!cond->getType()->isIntegerTy(1))
+        cond = builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
+    builder.CreateCondBr(cond, bodyBB, endBB);
+
+    builder.SetInsertPoint(bodyBB);
+    genBlock(s.body);
+    if (!builder.GetInsertBlock()->getTerminator())
+        builder.CreateBr(condBB);
+
+    builder.SetInsertPoint(endBB);
+}
+
+// madam (init; cond; update) { ... }
+void Codegen::genFor(const ForStmt& s) {
+    genStmt(*s.init);
+
+    auto* condBB = llvm::BasicBlock::Create(ctx, "madam.cond", currentFunction);
+    auto* bodyBB = llvm::BasicBlock::Create(ctx, "madam.body", currentFunction);
+    auto* endBB  = llvm::BasicBlock::Create(ctx, "madam.end",  currentFunction);
+
+    builder.CreateBr(condBB);
+    builder.SetInsertPoint(condBB);
+    llvm::Value* cond = genExpr(*s.condition);
+    if (!cond->getType()->isIntegerTy(1))
+        cond = builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
+    builder.CreateCondBr(cond, bodyBB, endBB);
+
+    builder.SetInsertPoint(bodyBB);
+    genBlock(s.body);
+    genExpr(*s.update); // update expression (e.g. i = i + 1)
+    if (!builder.GetInsertBlock()->getTerminator())
+        builder.CreateBr(condBB);
+
+    builder.SetInsertPoint(endBB);
+}
+
+void Codegen::genReturn(const ReturnStmt& s) {
+    if (s.value)
+        builder.CreateRet(genExpr(*s.value));
+    else
+        builder.CreateRetVoid();
+}
+
+void Codegen::genFunc(const FuncDecl& s) {
+    // ── Save caller context ───────────────────────────────────────────────────
+    llvm::Function*  savedFn = currentFunction;
+    llvm::BasicBlock* savedBB = builder.GetInsertBlock();
+    auto savedNamedValues = namedValues; // snapshot outer scope
+
+    // ── Build inner function ──────────────────────────────────────────────────
+    std::vector<llvm::Type*> paramTypes;
+    for (auto& p : s.params) paramTypes.push_back(getLLVMType(p.type));
+    auto* retTy = getLLVMType(s.returnType);
+    auto* ft    = llvm::FunctionType::get(retTy, paramTypes, false);
+    auto* fn    = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, s.name, module.get());
+
+    auto* bb = llvm::BasicBlock::Create(ctx, "entry", fn);
+    builder.SetInsertPoint(bb);
+    currentFunction = fn;
+
+    size_t idx = 0;
+    for (auto& arg : fn->args()) {
+        const auto& p = s.params[idx++];
+        arg.setName(p.name);
+        auto* alloca = createEntryAlloca(fn, p.name, arg.getType());
+        builder.CreateStore(&arg, alloca);
+        namedValues[p.name] = alloca;
+    }
+
+    genBlock(s.body);
+
+    // Implicit void return
+    if (retTy->isVoidTy() && !builder.GetInsertBlock()->getTerminator())
+        builder.CreateRetVoid();
+
+    llvm::verifyFunction(*fn, &llvm::errs());
+
+    // ── Restore caller context ────────────────────────────────────────────────
+    namedValues     = savedNamedValues;
+    currentFunction = savedFn;
+    if (savedBB)
+        builder.SetInsertPoint(savedBB);
+}
+
+// ── Expression codegen ────────────────────────────────────────────────────────
+llvm::Value* Codegen::genExpr(const Expr& expr) {
+    if (auto* e = dynamic_cast<const IntLitExpr*>(&expr))
+        return llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), e->value);
+    if (auto* e = dynamic_cast<const FloatLitExpr*>(&expr))
+        return llvm::ConstantFP::get(llvm::Type::getDoubleTy(ctx), e->value);
+    if (auto* e = dynamic_cast<const StringLitExpr*>(&expr))
+        return builder.CreateGlobalStringPtr(e->value);
+    if (auto* e = dynamic_cast<const BoolLitExpr*>(&expr))
+        return llvm::ConstantInt::get(llvm::Type::getInt1Ty(ctx), e->value ? 1 : 0);
+    if (auto* e = dynamic_cast<const VarExpr*>(&expr)) {
+        auto it = namedValues.find(e->name);
+        if (it == namedValues.end())
+            throw std::runtime_error("Undefined variable: " + e->name);
+        return builder.CreateLoad(it->second->getAllocatedType(), it->second, e->name);
+    }
+    if (auto* e = dynamic_cast<const BinaryExpr*>(&expr))   return genBinary(*e);
+    if (auto* e = dynamic_cast<const UnaryExpr*>(&expr))    return genUnary(*e);
+    if (auto* e = dynamic_cast<const CallExpr*>(&expr))     return genCall(*e);
+    if (auto* e = dynamic_cast<const AssignExpr*>(&expr))   return genAssign(*e);
+    throw std::runtime_error("Unknown expression type");
+}
+
+llvm::Value* Codegen::genBinary(const BinaryExpr& e) {
+    llvm::Value* L = genExpr(*e.lhs);
+    llvm::Value* R = genExpr(*e.rhs);
+    bool isFloat = L->getType()->isDoubleTy();
+
+    if (e.op == "+")   return isFloat ? builder.CreateFAdd(L, R) : builder.CreateAdd(L, R);
+    if (e.op == "-")   return isFloat ? builder.CreateFSub(L, R) : builder.CreateSub(L, R);
+    if (e.op == "*")   return isFloat ? builder.CreateFMul(L, R) : builder.CreateMul(L, R);
+    if (e.op == "/")   return isFloat ? builder.CreateFDiv(L, R) : builder.CreateSDiv(L, R);
+    if (e.op == "%")   return builder.CreateSRem(L, R);
+    if (e.op == "==")  return isFloat ? builder.CreateFCmpOEQ(L, R) : builder.CreateICmpEQ(L, R);
+    if (e.op == "!=")  return isFloat ? builder.CreateFCmpONE(L, R) : builder.CreateICmpNE(L, R);
+    if (e.op == "<")   return isFloat ? builder.CreateFCmpOLT(L, R) : builder.CreateICmpSLT(L, R);
+    if (e.op == ">")   return isFloat ? builder.CreateFCmpOGT(L, R) : builder.CreateICmpSGT(L, R);
+    if (e.op == "<=")  return isFloat ? builder.CreateFCmpOLE(L, R) : builder.CreateICmpSLE(L, R);
+    if (e.op == ">=")  return isFloat ? builder.CreateFCmpOGE(L, R) : builder.CreateICmpSGE(L, R);
+    if (e.op == "and") return builder.CreateAnd(L, R);
+    if (e.op == "or")  return builder.CreateOr(L, R);
+    throw std::runtime_error("Unknown binary operator: " + e.op);
+}
+
+llvm::Value* Codegen::genUnary(const UnaryExpr& e) {
+    llvm::Value* V = genExpr(*e.operand);
+    if (e.op == "machi" || e.op == "not") return builder.CreateNot(V);
+    if (e.op == "-") return V->getType()->isDoubleTy() ? builder.CreateFNeg(V) : builder.CreateNeg(V);
+    throw std::runtime_error("Unknown unary operator: " + e.op);
+}
+
+llvm::Value* Codegen::genCall(const CallExpr& e) {
+    llvm::Function* fn = module->getFunction(e.callee);
+    if (!fn) throw std::runtime_error("Unknown function: " + e.callee);
+    std::vector<llvm::Value*> args;
+    for (auto& a : e.args) args.push_back(genExpr(*a));
+    return builder.CreateCall(fn, args);
+}
+
+llvm::Value* Codegen::genAssign(const AssignExpr& e) {
+    auto it = namedValues.find(e.name);
+    if (it == namedValues.end())
+        throw std::runtime_error("Undefined variable: " + e.name);
+    if (constFlags.count(e.name) && constFlags[e.name])
+        throw std::runtime_error("Cannot assign to constant: " + e.name);
+    llvm::Value* val = genExpr(*e.value);
+    builder.CreateStore(val, it->second);
+    return val;
+}

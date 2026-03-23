@@ -1,0 +1,54 @@
+#pragma once
+#include "AST.h"
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Value.h>
+#include <map>
+#include <memory>
+#include <string>
+
+class Codegen {
+public:
+    Codegen();
+    void generate(const Program& prog);
+    void dumpIR() const;
+    void writeObjectFile(const std::string& path) const;
+
+private:
+    llvm::LLVMContext                        ctx;
+    llvm::IRBuilder<>                        builder;
+    std::unique_ptr<llvm::Module>            module;
+
+    // Symbol table: name -> alloca instruction
+    std::map<std::string, llvm::AllocaInst*> namedValues;
+    // Const flag: name -> true if ab9a_dayr
+    std::map<std::string, bool>              constFlags;
+
+    // Helpers
+    llvm::Type*      getLLVMType(const std::string& typeName);
+    llvm::Function*  currentFunction = nullptr;
+    llvm::AllocaInst* createEntryAlloca(llvm::Function* fn,
+                                        const std::string& name,
+                                        llvm::Type* ty);
+    void declarePrintf();
+    void declareScanf();
+
+    // Code generation visitors
+    void     genStmt(const Stmt& stmt);
+    void     genVarDecl(const VarDeclStmt& s);
+    void     genPrint(const PrintStmt& s);
+    void     genRead(const ReadStmt& s);
+    void     genIf(const IfStmt& s);
+    void     genWhile(const WhileStmt& s);
+    void     genFor(const ForStmt& s);
+    void     genReturn(const ReturnStmt& s);
+    void     genFunc(const FuncDecl& s);
+    void     genBlock(const std::vector<StmtPtr>& block);
+
+    llvm::Value* genExpr(const Expr& expr);
+    llvm::Value* genBinary(const BinaryExpr& e);
+    llvm::Value* genUnary(const UnaryExpr& e);
+    llvm::Value* genCall(const CallExpr& e);
+    llvm::Value* genAssign(const AssignExpr& e);
+};

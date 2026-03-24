@@ -41,6 +41,7 @@ enum class TokenKind {
     // Boolean literals
     Sa7,            // sa7            (true)
     Ghalt,          // ghalt          (false)
+    Walo,           // walo           (null/none)
 
     // Types (Darija)
     TypeTabi3i,     // tabi3i         (int)
@@ -49,6 +50,10 @@ enum class TokenKind {
     TypeFargh,      // fargh          (void)
     Type7arf,       // 7arf           (char)
     TypeNass,       // nass           (string)
+    TypeJadwal,     // jadwal         (array)
+    Type9aleb,      // 9aleb          (struct)
+    TypeAnwa3,      // anwa3          (enum)
+    TypeYmkn,       // ymkn           (optional)
 
     // Built-ins
     Ektb,           // ektb(...)      (printf)
@@ -82,6 +87,8 @@ enum class TokenKind {
     RParen,         // )
     LBrace,         // {
     RBrace,         // }
+    LBracket,       // [
+    RBracket,       // ]
     Semicolon,      // ;
     Colon,          // :
     Comma,          // ,

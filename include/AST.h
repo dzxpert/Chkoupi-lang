@@ -43,6 +43,48 @@ struct AssignExpr : Expr {
     ExprPtr     value;
 };
 
+// ── Complex type expressions ─────────────────────────────────────────────────
+
+// Array literal: [1, 2, 3]
+struct ArrayLitExpr : Expr {
+    std::vector<ExprPtr> elements;
+};
+
+// Array index read: arr[i]
+struct IndexExpr : Expr {
+    ExprPtr object;
+    ExprPtr index;
+};
+
+// Array index write: arr[i] = val
+struct IndexAssignExpr : Expr {
+    ExprPtr object;
+    ExprPtr index;
+    ExprPtr value;
+};
+
+// Struct literal: Insan { ism: "brahim", 3omr: 25 }
+struct StructLitExpr : Expr {
+    std::string structName;
+    std::vector<std::pair<std::string, ExprPtr>> fieldInits;
+};
+
+// Field access read: obj.field
+struct FieldAccessExpr : Expr {
+    ExprPtr     object;
+    std::string field;
+};
+
+// Field access write: obj.field = val
+struct FieldAssignExpr : Expr {
+    ExprPtr     object;
+    std::string field;
+    ExprPtr     value;
+};
+
+// Null literal: walo
+struct NullLitExpr : Expr {};
+
 // ── Statements ───────────────────────────────────────────────────────────────
 
 struct Stmt { virtual ~Stmt() = default; };
@@ -105,6 +147,19 @@ struct TryCatchStmt : Stmt {
 // jibli "path";
 struct ImportStmt : Stmt {
     std::string path;
+};
+
+// 9aleb Name { field: type; ... }
+struct StructDecl : Stmt {
+    struct Field { std::string name, type; };
+    std::string          name;
+    std::vector<Field>   fields;
+};
+
+// anwa3 Name { variant; ... }
+struct EnumDecl : Stmt {
+    std::string              name;
+    std::vector<std::string> variants;
 };
 
 // raja3 <expr>

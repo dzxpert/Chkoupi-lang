@@ -26,6 +26,7 @@ static const std::unordered_map<std::string, TokenKind> KEYWORDS = {
     // Booleans
     {"sa7",         TokenKind::Sa7},
     {"ghalt",       TokenKind::Ghalt},
+    {"walo",        TokenKind::Walo},
     // Types
     {"tabi3i",      TokenKind::TypeTabi3i},
     {"3ouchri",     TokenKind::Type3ouchri},
@@ -33,6 +34,10 @@ static const std::unordered_map<std::string, TokenKind> KEYWORDS = {
     {"fargh",       TokenKind::TypeFargh},
     {"7arf",        TokenKind::Type7arf},
     {"nass",        TokenKind::TypeNass},
+    {"jadwal",      TokenKind::TypeJadwal},
+    {"9aleb",       TokenKind::Type9aleb},
+    {"anwa3",       TokenKind::TypeAnwa3},
+    {"ymkn",        TokenKind::TypeYmkn},
     // Built-ins
     {"ektb",        TokenKind::Ektb},
     {"a9ra",        TokenKind::A9ra},
@@ -183,6 +188,8 @@ std::vector<Token> Lexer::tokenize() {
             case ')': tokens.push_back(makeToken(TokenKind::RParen,    ")")); break;
             case '{': tokens.push_back(makeToken(TokenKind::LBrace,    "{")); break;
             case '}': tokens.push_back(makeToken(TokenKind::RBrace,    "}")); break;
+            case '[': tokens.push_back(makeToken(TokenKind::LBracket,  "[")); break;
+            case ']': tokens.push_back(makeToken(TokenKind::RBracket,  "]")); break;
             case ';': tokens.push_back(makeToken(TokenKind::Semicolon, ";")); break;
             case ':': tokens.push_back(makeToken(TokenKind::Colon,     ":")); break;
             case ',': tokens.push_back(makeToken(TokenKind::Comma,     ",")); break;

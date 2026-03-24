@@ -1,0 +1,40 @@
+// complex.dz - Chkoupi-lang complex types demo
+
+// ── jadwal (arrays) ──────────────────────────────────
+dir nums : jadwal[tabi3i] = [10, 20, 30, 40, 50];
+ektb("nums[0] = %lld\n", nums[0]);
+ektb("nums[2] = %lld\n", nums[2]);
+
+nums[0] = 99;
+ektb("ba3d tbdil: nums[0] = %lld\n", nums[0]);
+
+dir floats : jadwal[3ouchri] = [1.1, 2.2, 3.3];
+ektb("floats[1] = %lf\n", floats[1]);
+
+// ── 9aleb (structs) ──────────────────────────────────
+9aleb Insan {
+    ism : nass;
+    3omr : tabi3i;
+}
+
+dir brahim = Insan { ism: "Brahim", 3omr: 25 };
+ektb("%s 3ndou %lld 3am\n", brahim.ism, brahim.3omr);
+
+// ── anwa3 (enums) ────────────────────────────────────
+anwa3 Lon {
+    7mr;
+    khdhr;
+    zr9;
+}
+
+dir lwni : tabi3i = Lon.khdhr;
+ektb("Lon.khdhr = %lld\n", lwni);
+
+idha (lwni == Lon.khdhr) {
+    ektb("lon khdhr!\n");
+}
+
+// ── ymkn (optionals) ────────────────────────────────
+dir x : ymkn[tabi3i] = 42;
+dir y : ymkn[tabi3i] = walo;
+ektb("optional demo done!\n");

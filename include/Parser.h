@@ -31,6 +31,9 @@ private:
     StmtPtr parseImport();                 // jibli
     StmtPtr parseReturn();                 // raja3
     StmtPtr parseFuncDecl();               // dalla
+    StmtPtr parseStructDecl();             // 9aleb
+    StmtPtr parseEnumDecl();               // anwa3
+    std::string parseTypeName();           // type annotation parser
     std::vector<StmtPtr> parseBlock();
 
     // Expressions (Pratt-style precedence)

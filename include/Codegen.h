@@ -25,6 +25,15 @@ private:
     std::map<std::string, llvm::AllocaInst*> namedValues;
     // Const flag: name -> true if ab9a_dayr
     std::map<std::string, bool>              constFlags;
+    // Variable type tracking (for struct field access)
+    std::map<std::string, std::string>       varTypes;
+
+    // Struct type registry
+    std::map<std::string, llvm::StructType*>                  structTypes;
+    std::map<std::string, std::vector<std::pair<std::string, std::string>>> structFieldInfo; // name -> [(fieldName, fieldType)]
+
+    // Enum variant registry
+    std::map<std::string, std::map<std::string, int>>         enumVariants;
 
     // Helpers
     llvm::Type*      getLLVMType(const std::string& typeName);
@@ -47,6 +56,8 @@ private:
     void     genTryCatch(const TryCatchStmt& s);
     void     genReturn(const ReturnStmt& s);
     void     genFunc(const FuncDecl& s);
+    void     genStructDecl(const StructDecl& s);
+    void     genEnumDecl(const EnumDecl& s);
     void     genBlock(const std::vector<StmtPtr>& block);
 
     llvm::Value* genExpr(const Expr& expr);
@@ -54,4 +65,12 @@ private:
     llvm::Value* genUnary(const UnaryExpr& e);
     llvm::Value* genCall(const CallExpr& e);
     llvm::Value* genAssign(const AssignExpr& e);
+    llvm::Value* genArrayLit(const ArrayLitExpr& e);
+    llvm::Value* genIndex(const IndexExpr& e);
+    llvm::Value* genIndexAssign(const IndexAssignExpr& e);
+    llvm::Value* genStructLit(const StructLitExpr& e);
+    llvm::Value* genFieldAccess(const FieldAccessExpr& e);
+    llvm::Value* genFieldAssign(const FieldAssignExpr& e);
+    int          getFieldIndex(const std::string& structName, const std::string& fieldName);
+    std::string  getStructNameForVar(const std::string& varName);
 };

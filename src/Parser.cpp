@@ -51,10 +51,39 @@ static std::string tokenToType(TokenKind k) {
     }
 }
 
-static bool isTypeToken(TokenKind k) {
+static bool isBasicTypeToken(TokenKind k) {
     return k == TokenKind::TypeTabi3i  || k == TokenKind::Type3ouchri ||
            k == TokenKind::Type5iyar   || k == TokenKind::TypeFargh   ||
            k == TokenKind::Type7arf    || k == TokenKind::TypeNass;
+}
+
+// Parse a full type annotation: tabi3i, jadwal[tabi3i], ymkn[tabi3i], UserType
+std::string Parser::parseTypeName() {
+    // jadwal[elementType]
+    if (check(TokenKind::TypeJadwal)) {
+        advance();
+        expect(TokenKind::LBracket, "Expected '[' after jadwal");
+        std::string inner = parseTypeName();
+        expect(TokenKind::RBracket, "Expected ']'");
+        return "array:" + inner;
+    }
+    // ymkn[innerType]
+    if (check(TokenKind::TypeYmkn)) {
+        advance();
+        expect(TokenKind::LBracket, "Expected '[' after ymkn");
+        std::string inner = parseTypeName();
+        expect(TokenKind::RBracket, "Expected ']'");
+        return "optional:" + inner;
+    }
+    // Primitive types
+    if (isBasicTypeToken(peek().kind)) {
+        return tokenToType(advance().kind);
+    }
+    // User-defined types (struct/enum names)
+    if (check(TokenKind::Identifier)) {
+        return advance().lexeme;
+    }
+    throw std::runtime_error("Expected type name at line " + std::to_string(peek().line));
 }
 
 // ── Statements ────────────────────────────────────────────────────────────────
@@ -68,6 +97,8 @@ StmtPtr Parser::parseStmt() {
     if (check(TokenKind::Dor))        return parseFor();
     if (check(TokenKind::Raja3))      return parseReturn();
     if (check(TokenKind::Dalla))      return parseFuncDecl();
+    if (check(TokenKind::Type9aleb))  return parseStructDecl();
+    if (check(TokenKind::TypeAnwa3))  return parseEnumDecl();
     if (check(TokenKind::Bdl))        return parseSwitch();
     if (check(TokenKind::Jarb))       return parseTryCatch();
     if (check(TokenKind::Jibli))      return parseImport();
@@ -86,11 +117,9 @@ StmtPtr Parser::parseVarDecl(bool isConst) {
     s->isConst = isConst;
     s->name = expect(TokenKind::Identifier, "Expected variable name").lexeme;
 
-    // Optional type annotation  : tabi3i
+    // Optional type annotation  : tabi3i / jadwal[tabi3i] / UserType
     if (match(TokenKind::Colon)) {
-        if (!isTypeToken(peek().kind))
-            throw std::runtime_error("Expected type name at line " + std::to_string(peek().line));
-        s->type = tokenToType(advance().kind);
+        s->type = parseTypeName();
     }
 
     expect(TokenKind::Eq, "Expected '=' in variable declaration");
@@ -192,18 +221,14 @@ StmtPtr Parser::parseFuncDecl() {
         FuncDecl::Param p;
         p.name = expect(TokenKind::Identifier, "Expected param name").lexeme;
         expect(TokenKind::Colon, "Expected ':' after param name");
-        if (!isTypeToken(peek().kind))
-            throw std::runtime_error("Expected type name at line " + std::to_string(peek().line));
-        p.type = tokenToType(advance().kind);
+        p.type = parseTypeName();
         s->params.push_back(std::move(p));
         match(TokenKind::Comma);
     }
     expect(TokenKind::RParen, "Expected ')'");
     s->returnType = "void";
     if (match(TokenKind::Arrow)) {
-        if (!isTypeToken(peek().kind))
-            throw std::runtime_error("Expected return type at line " + std::to_string(peek().line));
-        s->returnType = tokenToType(advance().kind);
+        s->returnType = parseTypeName();
     }
     s->body = parseBlock();
     return s;
@@ -249,6 +274,39 @@ StmtPtr Parser::parseImport() {
     return s;
 }
 
+// 9aleb Name { field: type; ... }
+StmtPtr Parser::parseStructDecl() {
+    advance(); // consume 9aleb
+    auto s = std::make_unique<StructDecl>();
+    s->name = expect(TokenKind::Identifier, "Expected struct name").lexeme;
+    expect(TokenKind::LBrace, "Expected '{'");
+    while (!check(TokenKind::RBrace) && !check(TokenKind::Eof)) {
+        StructDecl::Field f;
+        f.name = advance().lexeme; // accept any token as field name (supports darija identifiers)
+        expect(TokenKind::Colon, "Expected ':'");
+        f.type = parseTypeName();
+        expect(TokenKind::Semicolon, "Expected ';'");
+        s->fields.push_back(std::move(f));
+    }
+    expect(TokenKind::RBrace, "Expected '}'");
+    return s;
+}
+
+// anwa3 Name { variant; ... }
+StmtPtr Parser::parseEnumDecl() {
+    advance(); // consume anwa3
+    auto s = std::make_unique<EnumDecl>();
+    s->name = expect(TokenKind::Identifier, "Expected enum name").lexeme;
+    expect(TokenKind::LBrace, "Expected '{'");
+    while (!check(TokenKind::RBrace) && !check(TokenKind::Eof)) {
+        Token t = advance(); // accept any token as variant name
+        s->variants.push_back(t.lexeme);
+        expect(TokenKind::Semicolon, "Expected ';'");
+    }
+    expect(TokenKind::RBrace, "Expected '}'");
+    return s;
+}
+
 std::vector<StmtPtr> Parser::parseBlock() {
     expect(TokenKind::LBrace, "Expected '{'");
     std::vector<StmtPtr> stmts;
@@ -271,7 +329,27 @@ ExprPtr Parser::parseAssign() {
         e->value = std::move(val);
         return e;
     }
-    return parseOr();
+    auto expr = parseOr();
+    // Complex lvalue assignment: arr[i] = val, obj.field = val
+    if (match(TokenKind::Eq)) {
+        auto val = parseAssign();
+        if (auto* idx = dynamic_cast<IndexExpr*>(expr.get())) {
+            auto e = std::make_unique<IndexAssignExpr>();
+            e->object = std::move(idx->object);
+            e->index  = std::move(idx->index);
+            e->value  = std::move(val);
+            return e;
+        }
+        if (auto* fa = dynamic_cast<FieldAccessExpr*>(expr.get())) {
+            auto e = std::make_unique<FieldAssignExpr>();
+            e->object = std::move(fa->object);
+            e->field  = fa->field;
+            e->value  = std::move(val);
+            return e;
+        }
+        throw std::runtime_error("Invalid assignment target at line " + std::to_string(peek().line));
+    }
+    return expr;
 }
 
 ExprPtr Parser::parseOr() {
@@ -359,22 +437,68 @@ ExprPtr Parser::parseUnary() {
 }
 
 ExprPtr Parser::parseCall() {
-    auto callee = parsePrimary();
-    if (auto* v = dynamic_cast<VarExpr*>(callee.get())) {
-        if (check(TokenKind::LParen)) {
-            advance();
-            auto e = std::make_unique<CallExpr>();
-            e->callee = v->name;
-            if (!check(TokenKind::RParen)) {
-                e->args.push_back(parseExpr());
-                while (match(TokenKind::Comma))
+    auto expr = parsePrimary();
+
+    while (true) {
+        // Function call: name(...)
+        if (auto* v = dynamic_cast<VarExpr*>(expr.get())) {
+            if (check(TokenKind::LParen)) {
+                advance();
+                auto e = std::make_unique<CallExpr>();
+                e->callee = v->name;
+                if (!check(TokenKind::RParen)) {
                     e->args.push_back(parseExpr());
+                    while (match(TokenKind::Comma))
+                        e->args.push_back(parseExpr());
+                }
+                expect(TokenKind::RParen, "Expected ')'");
+                expr = std::move(e);
+                continue;
             }
-            expect(TokenKind::RParen, "Expected ')'");
-            return e;
+            // Struct literal: Name { field: val, ... }
+            // Disambiguate from blocks by checking: Identifier { Identifier :
+            if (check(TokenKind::LBrace) &&
+                peek(1).kind == TokenKind::Identifier &&
+                peek(2).kind == TokenKind::Colon) {
+                advance(); // consume {
+                auto e = std::make_unique<StructLitExpr>();
+                e->structName = v->name;
+                while (!check(TokenKind::RBrace) && !check(TokenKind::Eof)) {
+                    std::string fieldName = expect(TokenKind::Identifier, "Expected field name").lexeme;
+                    expect(TokenKind::Colon, "Expected ':'");
+                    auto fieldVal = parseExpr();
+                    e->fieldInits.push_back({fieldName, std::move(fieldVal)});
+                    match(TokenKind::Comma);
+                }
+                expect(TokenKind::RBrace, "Expected '}'");
+                expr = std::move(e);
+                continue;
+            }
         }
+        // Index access: expr[index]
+        if (check(TokenKind::LBracket)) {
+            advance();
+            auto idx = parseExpr();
+            expect(TokenKind::RBracket, "Expected ']'");
+            auto e = std::make_unique<IndexExpr>();
+            e->object = std::move(expr);
+            e->index  = std::move(idx);
+            expr = std::move(e);
+            continue;
+        }
+        // Field / enum access: expr.field
+        if (check(TokenKind::Dot)) {
+            advance();
+            Token fieldTok = advance(); // accept any token as field name
+            auto e = std::make_unique<FieldAccessExpr>();
+            e->object = std::move(expr);
+            e->field  = fieldTok.lexeme;
+            expr = std::move(e);
+            continue;
+        }
+        break;
     }
-    return callee;
+    return expr;
 }
 
 ExprPtr Parser::parsePrimary() {
@@ -414,6 +538,23 @@ ExprPtr Parser::parsePrimary() {
         auto e = parseExpr();
         expect(TokenKind::RParen, "Expected ')'");
         return e;
+    }
+    // Array literal: [expr, expr, ...]
+    if (check(TokenKind::LBracket)) {
+        advance(); // consume [
+        auto e = std::make_unique<ArrayLitExpr>();
+        if (!check(TokenKind::RBracket)) {
+            e->elements.push_back(parseExpr());
+            while (match(TokenKind::Comma))
+                e->elements.push_back(parseExpr());
+        }
+        expect(TokenKind::RBracket, "Expected ']'");
+        return e;
+    }
+    // Null literal: walo
+    if (check(TokenKind::Walo)) {
+        advance();
+        return std::make_unique<NullLitExpr>();
     }
     throw std::runtime_error("Unexpected token '" + peek().lexeme + "' at line " + std::to_string(peek().line));
 }

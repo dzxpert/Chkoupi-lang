@@ -35,6 +35,15 @@ llvm::Type* Codegen::getLLVMType(const std::string& t) {
     if (t == "char")              return llvm::Type::getInt8Ty(ctx);
     if (t == "string")            return llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx));
     if (t == "void")              return llvm::Type::getVoidTy(ctx);
+    // Optional: optional:T -> { i1, T }
+    if (t.rfind("optional:", 0) == 0) {
+        std::string inner = t.substr(9);
+        llvm::Type* innerTy = getLLVMType(inner);
+        return llvm::StructType::get(ctx, {llvm::Type::getInt1Ty(ctx), innerTy});
+    }
+    // User-defined struct
+    auto it = structTypes.find(t);
+    if (it != structTypes.end()) return it->second;
     throw std::runtime_error("Unknown type: " + t);
 }
 
@@ -152,6 +161,8 @@ void Codegen::genStmt(const Stmt& stmt) {
     if (dynamic_cast<const ImportStmt*>(&stmt))               { /* resolved at link time */ return; }
     if (auto* s = dynamic_cast<const ReturnStmt*>(&stmt))     { genReturn(*s);  return; }
     if (auto* s = dynamic_cast<const FuncDecl*>(&stmt))       { genFunc(*s);    return; }
+    if (auto* s = dynamic_cast<const StructDecl*>(&stmt))     { genStructDecl(*s); return; }
+    if (auto* s = dynamic_cast<const EnumDecl*>(&stmt))       { genEnumDecl(*s); return; }
     if (auto* s = dynamic_cast<const ExprStmt*>(&stmt))       { genExpr(*s->expr); return; }
     throw std::runtime_error("Unknown statement type");
 }
@@ -161,12 +172,76 @@ void Codegen::genBlock(const std::vector<StmtPtr>& block) {
 }
 
 void Codegen::genVarDecl(const VarDeclStmt& s) {
+    // ── Array literal init: dir arr = [1, 2, 3]; ─────────────────────────────
+    if (auto* arrLit = dynamic_cast<const ArrayLitExpr*>(s.init.get())) {
+        if (arrLit->elements.empty())
+            throw std::runtime_error("Empty array literal");
+        llvm::Value* firstVal = genExpr(*arrLit->elements[0]);
+        llvm::Type*  elemTy   = firstVal->getType();
+        size_t count = arrLit->elements.size();
+        auto* arrTy  = llvm::ArrayType::get(elemTy, count);
+        auto* alloca = createEntryAlloca(currentFunction, s.name, arrTy);
+        auto* zero   = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 0);
+        for (size_t i = 0; i < count; ++i) {
+            auto* idx = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), i);
+            auto* gep = builder.CreateGEP(arrTy, alloca, {zero, idx});
+            llvm::Value* val = (i == 0) ? firstVal : genExpr(*arrLit->elements[i]);
+            builder.CreateStore(val, gep);
+        }
+        namedValues[s.name] = alloca;
+        constFlags[s.name]  = s.isConst;
+        varTypes[s.name]    = s.type;
+        return;
+    }
+
+    // ── Optional init: dir x : ymkn[tabi3i] = walo; ─────────────────────────
+    if (s.type.rfind("optional:", 0) == 0) {
+        llvm::Type* optTy = getLLVMType(s.type);
+        auto* alloca = createEntryAlloca(currentFunction, s.name, optTy);
+        if (dynamic_cast<const NullLitExpr*>(s.init.get())) {
+            // walo: {false, undef}
+            auto* hasValPtr = builder.CreateStructGEP(optTy, alloca, 0);
+            builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt1Ty(ctx), 0), hasValPtr);
+        } else {
+            // value present: {true, val}
+            llvm::Value* initVal = genExpr(*s.init);
+            auto* hasValPtr = builder.CreateStructGEP(optTy, alloca, 0);
+            builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt1Ty(ctx), 1), hasValPtr);
+            auto* valPtr = builder.CreateStructGEP(optTy, alloca, 1);
+            builder.CreateStore(initVal, valPtr);
+        }
+        namedValues[s.name] = alloca;
+        constFlags[s.name]  = s.isConst;
+        varTypes[s.name]    = s.type;
+        return;
+    }
+
+    // ── Struct literal init ──────────────────────────────────────────────────
+    if (auto* slit = dynamic_cast<const StructLitExpr*>(s.init.get())) {
+        auto stIt = structTypes.find(slit->structName);
+        if (stIt == structTypes.end())
+            throw std::runtime_error("Unknown struct type: " + slit->structName);
+        llvm::StructType* st = stIt->second;
+        auto* alloca = createEntryAlloca(currentFunction, s.name, st);
+        for (auto& [fieldName, fieldExpr] : slit->fieldInits) {
+            int idx = getFieldIndex(slit->structName, fieldName);
+            auto* gep = builder.CreateStructGEP(st, alloca, idx);
+            builder.CreateStore(genExpr(*fieldExpr), gep);
+        }
+        namedValues[s.name] = alloca;
+        constFlags[s.name]  = s.isConst;
+        varTypes[s.name]    = slit->structName;
+        return;
+    }
+
+    // ── Normal scalar init ───────────────────────────────────────────────────
     llvm::Value* initVal = genExpr(*s.init);
     llvm::Type*  ty      = initVal->getType();
     auto* alloca = createEntryAlloca(currentFunction, s.name, ty);
     builder.CreateStore(initVal, alloca);
     namedValues[s.name] = alloca;
     constFlags[s.name]  = s.isConst;
+    varTypes[s.name]    = s.type;
 }
 
 // ektb("fmt", args...)  →  printf
@@ -374,10 +449,18 @@ llvm::Value* Codegen::genExpr(const Expr& expr) {
             throw std::runtime_error("Undefined variable: " + e->name);
         return builder.CreateLoad(it->second->getAllocatedType(), it->second, e->name);
     }
-    if (auto* e = dynamic_cast<const BinaryExpr*>(&expr))   return genBinary(*e);
-    if (auto* e = dynamic_cast<const UnaryExpr*>(&expr))    return genUnary(*e);
-    if (auto* e = dynamic_cast<const CallExpr*>(&expr))     return genCall(*e);
-    if (auto* e = dynamic_cast<const AssignExpr*>(&expr))   return genAssign(*e);
+    if (auto* e = dynamic_cast<const BinaryExpr*>(&expr))       return genBinary(*e);
+    if (auto* e = dynamic_cast<const UnaryExpr*>(&expr))        return genUnary(*e);
+    if (auto* e = dynamic_cast<const CallExpr*>(&expr))         return genCall(*e);
+    if (auto* e = dynamic_cast<const AssignExpr*>(&expr))       return genAssign(*e);
+    if (auto* e = dynamic_cast<const ArrayLitExpr*>(&expr))     return genArrayLit(*e);
+    if (auto* e = dynamic_cast<const IndexExpr*>(&expr))        return genIndex(*e);
+    if (auto* e = dynamic_cast<const IndexAssignExpr*>(&expr))  return genIndexAssign(*e);
+    if (auto* e = dynamic_cast<const StructLitExpr*>(&expr))    return genStructLit(*e);
+    if (auto* e = dynamic_cast<const FieldAccessExpr*>(&expr))  return genFieldAccess(*e);
+    if (auto* e = dynamic_cast<const FieldAssignExpr*>(&expr))  return genFieldAssign(*e);
+    if (dynamic_cast<const NullLitExpr*>(&expr))
+        throw std::runtime_error("'walo' can only be used in optional variable declarations");
     throw std::runtime_error("Unknown expression type");
 }
 
@@ -426,4 +509,163 @@ llvm::Value* Codegen::genAssign(const AssignExpr& e) {
     llvm::Value* val = genExpr(*e.value);
     builder.CreateStore(val, it->second);
     return val;
+}
+
+// ── Struct / Enum declaration codegen ─────────────────────────────────────────
+
+void Codegen::genStructDecl(const StructDecl& s) {
+    std::vector<llvm::Type*> fieldTypes;
+    std::vector<std::pair<std::string, std::string>> fieldInfo;
+    for (auto& f : s.fields) {
+        fieldTypes.push_back(getLLVMType(f.type));
+        fieldInfo.push_back({f.name, f.type});
+    }
+    auto* st = llvm::StructType::create(ctx, fieldTypes, s.name);
+    structTypes[s.name] = st;
+    structFieldInfo[s.name] = std::move(fieldInfo);
+}
+
+void Codegen::genEnumDecl(const EnumDecl& s) {
+    int idx = 0;
+    for (auto& v : s.variants) {
+        enumVariants[s.name][v] = idx++;
+    }
+}
+
+// ── Array codegen ─────────────────────────────────────────────────────────────
+
+llvm::Value* Codegen::genArrayLit(const ArrayLitExpr& e) {
+    // Standalone array literal (outside var decl): alloca + populate
+    if (e.elements.empty())
+        throw std::runtime_error("Empty array literal");
+    llvm::Value* firstVal = genExpr(*e.elements[0]);
+    llvm::Type*  elemTy   = firstVal->getType();
+    size_t count = e.elements.size();
+    auto* arrTy  = llvm::ArrayType::get(elemTy, count);
+    auto* alloca = createEntryAlloca(currentFunction, "jadwal_tmp", arrTy);
+    auto* zero   = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 0);
+    for (size_t i = 0; i < count; ++i) {
+        auto* idx = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), i);
+        auto* gep = builder.CreateGEP(arrTy, alloca, {zero, idx});
+        llvm::Value* val = (i == 0) ? firstVal : genExpr(*e.elements[i]);
+        builder.CreateStore(val, gep);
+    }
+    return builder.CreateLoad(arrTy, alloca);
+}
+
+llvm::Value* Codegen::genIndex(const IndexExpr& e) {
+    auto* varExpr = dynamic_cast<const VarExpr*>(e.object.get());
+    if (!varExpr) throw std::runtime_error("Can only index variables");
+    auto it = namedValues.find(varExpr->name);
+    if (it == namedValues.end())
+        throw std::runtime_error("Undefined variable: " + varExpr->name);
+    auto* alloca = it->second;
+    auto* arrTy  = alloca->getAllocatedType();
+    if (!arrTy->isArrayTy())
+        throw std::runtime_error("Variable '" + varExpr->name + "' is not an array");
+    llvm::Value* idx  = genExpr(*e.index);
+    auto* zero   = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 0);
+    auto* gep    = builder.CreateGEP(arrTy, alloca, {zero, idx});
+    auto* elemTy = arrTy->getArrayElementType();
+    return builder.CreateLoad(elemTy, gep);
+}
+
+llvm::Value* Codegen::genIndexAssign(const IndexAssignExpr& e) {
+    auto* varExpr = dynamic_cast<const VarExpr*>(e.object.get());
+    if (!varExpr) throw std::runtime_error("Can only index-assign variables");
+    auto it = namedValues.find(varExpr->name);
+    if (it == namedValues.end())
+        throw std::runtime_error("Undefined variable: " + varExpr->name);
+    if (constFlags.count(varExpr->name) && constFlags[varExpr->name])
+        throw std::runtime_error("Cannot assign to constant: " + varExpr->name);
+    auto* alloca = it->second;
+    auto* arrTy  = alloca->getAllocatedType();
+    if (!arrTy->isArrayTy())
+        throw std::runtime_error("Variable '" + varExpr->name + "' is not an array");
+    llvm::Value* idx = genExpr(*e.index);
+    llvm::Value* val = genExpr(*e.value);
+    auto* zero = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 0);
+    auto* gep  = builder.CreateGEP(arrTy, alloca, {zero, idx});
+    builder.CreateStore(val, gep);
+    return val;
+}
+
+// ── Struct codegen ────────────────────────────────────────────────────────────
+
+llvm::Value* Codegen::genStructLit(const StructLitExpr& e) {
+    auto stIt = structTypes.find(e.structName);
+    if (stIt == structTypes.end())
+        throw std::runtime_error("Unknown struct type: " + e.structName);
+    llvm::StructType* st = stIt->second;
+    auto* alloca = createEntryAlloca(currentFunction, "9aleb_tmp", st);
+    for (auto& [fieldName, fieldExpr] : e.fieldInits) {
+        int idx = getFieldIndex(e.structName, fieldName);
+        auto* gep = builder.CreateStructGEP(st, alloca, idx);
+        builder.CreateStore(genExpr(*fieldExpr), gep);
+    }
+    return builder.CreateLoad(st, alloca);
+}
+
+llvm::Value* Codegen::genFieldAccess(const FieldAccessExpr& e) {
+    // 1. Enum variant access: EnumName.variant → integer constant
+    if (auto* var = dynamic_cast<const VarExpr*>(e.object.get())) {
+        auto enumIt = enumVariants.find(var->name);
+        if (enumIt != enumVariants.end()) {
+            auto variantIt = enumIt->second.find(e.field);
+            if (variantIt == enumIt->second.end())
+                throw std::runtime_error("Unknown enum variant: " + var->name + "." + e.field);
+            return llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), variantIt->second);
+        }
+    }
+
+    // 2. Struct field access: obj.field
+    auto* var = dynamic_cast<const VarExpr*>(e.object.get());
+    if (!var) throw std::runtime_error("Field access requires a variable");
+    auto it = namedValues.find(var->name);
+    if (it == namedValues.end())
+        throw std::runtime_error("Undefined variable: " + var->name);
+    std::string sName = getStructNameForVar(var->name);
+    auto* st = structTypes[sName];
+    int idx = getFieldIndex(sName, e.field);
+    auto* gep = builder.CreateStructGEP(st, it->second, idx);
+    auto* fieldTy = st->getElementType(idx);
+    return builder.CreateLoad(fieldTy, gep);
+}
+
+llvm::Value* Codegen::genFieldAssign(const FieldAssignExpr& e) {
+    auto* var = dynamic_cast<const VarExpr*>(e.object.get());
+    if (!var) throw std::runtime_error("Field assign requires a variable");
+    auto it = namedValues.find(var->name);
+    if (it == namedValues.end())
+        throw std::runtime_error("Undefined variable: " + var->name);
+    if (constFlags.count(var->name) && constFlags[var->name])
+        throw std::runtime_error("Cannot assign to constant: " + var->name);
+    std::string sName = getStructNameForVar(var->name);
+    auto* st = structTypes[sName];
+    int idx = getFieldIndex(sName, e.field);
+    auto* gep = builder.CreateStructGEP(st, it->second, idx);
+    llvm::Value* val = genExpr(*e.value);
+    builder.CreateStore(val, gep);
+    return val;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+int Codegen::getFieldIndex(const std::string& structName, const std::string& fieldName) {
+    auto it = structFieldInfo.find(structName);
+    if (it == structFieldInfo.end())
+        throw std::runtime_error("Unknown struct: " + structName);
+    for (int i = 0; i < (int)it->second.size(); ++i) {
+        if (it->second[i].first == fieldName) return i;
+    }
+    throw std::runtime_error("Unknown field '" + fieldName + "' in struct '" + structName + "'");
+}
+
+std::string Codegen::getStructNameForVar(const std::string& varName) {
+    auto it = varTypes.find(varName);
+    if (it == varTypes.end() || it->second.empty())
+        throw std::runtime_error("Variable '" + varName + "' has no known struct type");
+    // Check if it's a known struct
+    if (structTypes.count(it->second)) return it->second;
+    throw std::runtime_error("Variable '" + varName + "' is not a struct (type: " + it->second + ")");
 }

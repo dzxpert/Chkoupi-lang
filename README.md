@@ -35,6 +35,9 @@ chkoupi.exe myfile.dz --emit-obj out.o   # compile to object file
 | `jibli` | import |
 | `sa7` | true |
 | `ghalt` | false |
+| `walo` | null/none |
+| `9aleb` | struct |
+| `anwa3` | enum |
 
 ## Types
 
@@ -46,6 +49,10 @@ chkoupi.exe myfile.dz --emit-obj out.o   # compile to object file
 | `7arf` | char |
 | `nass` | string |
 | `fargh` | void |
+| `jadwal[T]` | array of T |
+| `ymkn[T]` | optional T |
+| `9aleb Name { ... }` | struct |
+| `anwa3 Name { ... }` | enum |
 
 ## Operators
 
@@ -80,6 +87,31 @@ dalla add(a: tabi3i, b: tabi3i) -> tabi3i {
 }
 
 ektb("sum = %lld\n", add(3, 7));
+
+// jadwal (array)
+dir nums : jadwal[tabi3i] = [10, 20, 30];
+ektb("nums[1] = %lld\n", nums[1]);
+nums[0] = 99;
+
+// 9aleb (struct)
+9aleb Insan {
+    ism : nass;
+    3omr : tabi3i;
+}
+dir brahim = Insan { ism: "Brahim", 3omr: 25 };
+ektb("%s is %lld\n", brahim.ism, brahim.3omr);
+
+// anwa3 (enum)
+anwa3 Lon {
+    7mr;
+    khdhr;
+    zr9;
+}
+dir c : tabi3i = Lon.khdhr;
+
+// ymkn (optional)
+dir x : ymkn[tabi3i] = 42;
+dir y : ymkn[tabi3i] = walo;
 ```
 
 ## Building

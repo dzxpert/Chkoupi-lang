@@ -29,6 +29,82 @@ dir y = 3.14;  // inferred 3ouchri
 | `7arf` | character (8-bit) | `'a'` |
 | `nass` | string (pointer) | `"salam"` |
 | `fargh` | void (no return) | — |
+| `jadwal[T]` | array of T | `[1, 2, 3]` |
+| `9aleb` | struct (user-defined) | `9aleb Insan { ... }` |
+| `anwa3` | enum (user-defined) | `anwa3 Lon { ... }` |
+| `ymkn[T]` | optional T | `walo` = empty |
+
+---
+
+## Arrays (jadwal)
+
+```dz
+// Declaration with literal
+dir nums : jadwal[tabi3i] = [10, 20, 30];
+
+// Index access (0-based)
+ektb("nums[1] = %lld\n", nums[1]);
+
+// Index assignment
+nums[0] = 99;
+
+// Float array
+dir prices : jadwal[3ouchri] = [9.99, 19.99, 29.99];
+```
+
+---
+
+## Structs (9aleb)
+
+```dz
+// Define a struct
+9aleb Insan {
+    ism : nass;
+    3omr : tabi3i;
+}
+
+// Create an instance
+dir brahim = Insan { ism: "Brahim", 3omr: 25 };
+
+// Field access
+ektb("%s is %lld\n", brahim.ism, brahim.3omr);
+
+// Field assignment
+brahim.3omr = 26;
+```
+
+---
+
+## Enums (anwa3)
+
+```dz
+// Define an enum
+anwa3 Lon {
+    7mr;
+    khdhr;
+    zr9;
+}
+
+// Variant access (returns integer: 0, 1, 2, ...)
+dir c : tabi3i = Lon.khdhr;
+
+// Use in conditions
+idha (c == Lon.7mr) {
+    ektb("7mr!\n");
+}
+```
+
+---
+
+## Optionals (ymkn)
+
+```dz
+// Optional with a value
+dir x : ymkn[tabi3i] = 42;
+
+// Optional with no value (null)
+dir y : ymkn[tabi3i] = walo;
+```
 
 ---
 

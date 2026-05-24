@@ -18,6 +18,7 @@ private:
     char advance();
     void skipWhitespaceAndComments();
     Token readString();
+    Token readChar();
     Token readNumber();
     Token readIdentifierOrKeyword();
     Token makeToken(TokenKind kind, std::string lexeme);

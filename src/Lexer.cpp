@@ -103,6 +103,29 @@ Token Lexer::readString() {
     return makeToken(TokenKind::String, val);
 }
 
+Token Lexer::readChar() {
+    advance(); // consume opening '
+    char val;
+    if (peek() == '\\') {
+        advance();
+        char esc = advance();
+        switch (esc) {
+            case 'n':  val = '\n'; break;
+            case 't':  val = '\t'; break;
+            case '\'': val = '\''; break;
+            case '\\': val = '\\'; break;
+            case '0':  val = '\0'; break;
+            default:   val = esc;  break;
+        }
+    } else {
+        val = advance();
+    }
+    if (pos >= src.size() || peek() != '\'')
+        throw std::runtime_error("Unterminated char literal");
+    advance(); // consume closing '
+    return makeToken(TokenKind::Char, std::string(1, val));
+}
+
 Token Lexer::readNumber() {
     std::string num;
     bool isFloat = false;
@@ -143,7 +166,8 @@ std::vector<Token> Lexer::tokenize() {
 
         char c = peek();
 
-        if (c == '"') { tokens.push_back(readString()); continue; }
+        if (c == '"')  { tokens.push_back(readString()); continue; }
+        if (c == '\'') { tokens.push_back(readChar());   continue; }
         // Keywords starting with digits: 3ouchri, 5iyar, 7arf
         // If a digit is immediately followed by a letter → it's a keyword, not a number
         if (std::isdigit(c) && std::isalpha(peek(1))) {
@@ -170,6 +194,7 @@ std::vector<Token> Lexer::tokenize() {
                 break;
             case '!':
                 if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::BangEq, "!=")); }
+                else               tokens.push_back(makeToken(TokenKind::Unknown, "!"));
                 break;
             case '<':
                 if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::LtEq,   "<=")); }

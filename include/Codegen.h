@@ -51,6 +51,8 @@ private:
 
     llvm::Value* genExpr(const Expr& expr);
     llvm::Value* genBinary(const BinaryExpr& e);
+    llvm::Value* genLogicalAnd(const BinaryExpr& e);
+    llvm::Value* genLogicalOr(const BinaryExpr& e);
     llvm::Value* genUnary(const UnaryExpr& e);
     llvm::Value* genCall(const CallExpr& e);
     llvm::Value* genAssign(const AssignExpr& e);

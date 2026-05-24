@@ -11,6 +11,7 @@ enum class TokenKind {
     Integer,        // 42
     Float,          // 3.14
     String,         // "..."
+    Char,           // 'a'
     Identifier,     // foo
 
     // Keywords — declarations

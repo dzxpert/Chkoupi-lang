@@ -393,6 +393,11 @@ ExprPtr Parser::parsePrimary() {
         e->value = advance().lexeme;
         return e;
     }
+    if (check(TokenKind::Char)) {
+        auto e = std::make_unique<CharLitExpr>();
+        e->value = advance().lexeme[0];
+        return e;
+    }
     if (check(TokenKind::Sa7)) {
         advance();
         auto e = std::make_unique<BoolLitExpr>();

@@ -20,6 +20,7 @@ struct IntLitExpr    : Expr { long long  value; };
 struct FloatLitExpr  : Expr { double     value; };
 struct StringLitExpr : Expr { std::string value; };
 struct BoolLitExpr   : Expr { bool       value; };  // sa7 / ghalt
+struct CharLitExpr   : Expr { char       value; };  // 'a'
 
 struct VarExpr : Expr { std::string name; };
 

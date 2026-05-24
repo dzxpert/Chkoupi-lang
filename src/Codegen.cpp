@@ -157,7 +157,11 @@ void Codegen::genStmt(const Stmt& stmt) {
 }
 
 void Codegen::genBlock(const std::vector<StmtPtr>& block) {
+    auto savedNamedValues = namedValues;
+    auto savedConstFlags  = constFlags;
     for (auto& s : block) genStmt(*s);
+    namedValues = savedNamedValues;
+    constFlags  = savedConstFlags;
 }
 
 void Codegen::genVarDecl(const VarDeclStmt& s) {
@@ -288,26 +292,13 @@ void Codegen::genSwitch(const SwitchStmt& s) {
     builder.SetInsertPoint(endBB);
 }
 
-// jarb { ... } ila_ghalt { ... }  →  emits both blocks sequentially
-// (full exception support requires personality functions; this is a simplification)
+// jarb { ... } ila_ghalt { ... }
+// Real exception handling requires LLVM invoke/landingpad + personality function.
+// For now, emit the try block inline and ignore the catch block.
 void Codegen::genTryCatch(const TryCatchStmt& s) {
-    auto* tryBB   = llvm::BasicBlock::Create(ctx, "jarb.try",    currentFunction);
-    auto* catchBB = llvm::BasicBlock::Create(ctx, "ila_ghalt",   currentFunction);
-    auto* endBB   = llvm::BasicBlock::Create(ctx, "jarb.end",    currentFunction);
-
-    builder.CreateBr(tryBB);
-
-    builder.SetInsertPoint(tryBB);
+    llvm::errs() << "[chkoupi warning] jarb/ila_ghalt: exception handling not yet "
+                    "implemented, catch block will be ignored\n";
     genBlock(s.tryBlock);
-    if (!builder.GetInsertBlock()->getTerminator())
-        builder.CreateBr(endBB);
-
-    builder.SetInsertPoint(catchBB);
-    genBlock(s.catchBlock);
-    if (!builder.GetInsertBlock()->getTerminator())
-        builder.CreateBr(endBB);
-
-    builder.SetInsertPoint(endBB);
 }
 
 void Codegen::genReturn(const ReturnStmt& s) {
@@ -368,6 +359,8 @@ llvm::Value* Codegen::genExpr(const Expr& expr) {
         return builder.CreateGlobalStringPtr(e->value);
     if (auto* e = dynamic_cast<const BoolLitExpr*>(&expr))
         return llvm::ConstantInt::get(llvm::Type::getInt1Ty(ctx), e->value ? 1 : 0);
+    if (auto* e = dynamic_cast<const CharLitExpr*>(&expr))
+        return llvm::ConstantInt::get(llvm::Type::getInt8Ty(ctx), (uint8_t)e->value);
     if (auto* e = dynamic_cast<const VarExpr*>(&expr)) {
         auto it = namedValues.find(e->name);
         if (it == namedValues.end())
@@ -382,6 +375,10 @@ llvm::Value* Codegen::genExpr(const Expr& expr) {
 }
 
 llvm::Value* Codegen::genBinary(const BinaryExpr& e) {
+    // Short-circuit: don't evaluate RHS eagerly
+    if (e.op == "and") return genLogicalAnd(e);
+    if (e.op == "or")  return genLogicalOr(e);
+
     llvm::Value* L = genExpr(*e.lhs);
     llvm::Value* R = genExpr(*e.rhs);
     bool isFloat = L->getType()->isDoubleTy();
@@ -397,9 +394,59 @@ llvm::Value* Codegen::genBinary(const BinaryExpr& e) {
     if (e.op == ">")   return isFloat ? builder.CreateFCmpOGT(L, R) : builder.CreateICmpSGT(L, R);
     if (e.op == "<=")  return isFloat ? builder.CreateFCmpOLE(L, R) : builder.CreateICmpSLE(L, R);
     if (e.op == ">=")  return isFloat ? builder.CreateFCmpOGE(L, R) : builder.CreateICmpSGE(L, R);
-    if (e.op == "and") return builder.CreateAnd(L, R);
-    if (e.op == "or")  return builder.CreateOr(L, R);
     throw std::runtime_error("Unknown binary operator: " + e.op);
+}
+
+// w (and): short-circuit — if LHS is false, skip RHS
+llvm::Value* Codegen::genLogicalAnd(const BinaryExpr& e) {
+    llvm::Value* L = genExpr(*e.lhs);
+    if (!L->getType()->isIntegerTy(1))
+        L = builder.CreateICmpNE(L, llvm::ConstantInt::get(L->getType(), 0));
+
+    auto* lhsBB  = builder.GetInsertBlock();
+    auto* rhsBB  = llvm::BasicBlock::Create(ctx, "w.rhs",  currentFunction);
+    auto* endBB  = llvm::BasicBlock::Create(ctx, "w.end",  currentFunction);
+
+    builder.CreateCondBr(L, rhsBB, endBB);
+
+    builder.SetInsertPoint(rhsBB);
+    llvm::Value* R = genExpr(*e.rhs);
+    if (!R->getType()->isIntegerTy(1))
+        R = builder.CreateICmpNE(R, llvm::ConstantInt::get(R->getType(), 0));
+    auto* rhsEndBB = builder.GetInsertBlock();
+    builder.CreateBr(endBB);
+
+    builder.SetInsertPoint(endBB);
+    auto* phi = builder.CreatePHI(llvm::Type::getInt1Ty(ctx), 2, "w.result");
+    phi->addIncoming(llvm::ConstantInt::getFalse(ctx), lhsBB);
+    phi->addIncoming(R, rhsEndBB);
+    return phi;
+}
+
+// wla (or): short-circuit — if LHS is true, skip RHS
+llvm::Value* Codegen::genLogicalOr(const BinaryExpr& e) {
+    llvm::Value* L = genExpr(*e.lhs);
+    if (!L->getType()->isIntegerTy(1))
+        L = builder.CreateICmpNE(L, llvm::ConstantInt::get(L->getType(), 0));
+
+    auto* lhsBB  = builder.GetInsertBlock();
+    auto* rhsBB  = llvm::BasicBlock::Create(ctx, "wla.rhs", currentFunction);
+    auto* endBB  = llvm::BasicBlock::Create(ctx, "wla.end", currentFunction);
+
+    builder.CreateCondBr(L, endBB, rhsBB);
+
+    builder.SetInsertPoint(rhsBB);
+    llvm::Value* R = genExpr(*e.rhs);
+    if (!R->getType()->isIntegerTy(1))
+        R = builder.CreateICmpNE(R, llvm::ConstantInt::get(R->getType(), 0));
+    auto* rhsEndBB = builder.GetInsertBlock();
+    builder.CreateBr(endBB);
+
+    builder.SetInsertPoint(endBB);
+    auto* phi = builder.CreatePHI(llvm::Type::getInt1Ty(ctx), 2, "wla.result");
+    phi->addIncoming(llvm::ConstantInt::getTrue(ctx), lhsBB);
+    phi->addIncoming(R, rhsEndBB);
+    return phi;
 }
 
 llvm::Value* Codegen::genUnary(const UnaryExpr& e) {

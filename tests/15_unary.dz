@@ -1,0 +1,11 @@
+// Test: unary operators (negation, machi)
+dir x : tabi3i = 42;
+ektb("%lld\n", -x);
+ektb("%lld\n", -(-x));
+
+dir y : 3ouchri = 2.5;
+ektb("%lf\n", -y);
+
+dir b : 5iyar = sa7;
+ektb("%d\n", machi b);
+ektb("%d\n", machi ghalt);

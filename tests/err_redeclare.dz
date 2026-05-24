@@ -1,0 +1,3 @@
+// Error test: duplicate variable in same scope
+dir x : tabi3i = 1;
+dir x : tabi3i = 2;

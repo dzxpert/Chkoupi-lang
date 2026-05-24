@@ -1,0 +1,12 @@
+// Test: comparison operators
+dir a : tabi3i = 5;
+dir b : tabi3i = 10;
+
+ektb("%d\n", a == b);
+ektb("%d\n", a != b);
+ektb("%d\n", a < b);
+ektb("%d\n", a > b);
+ektb("%d\n", a <= b);
+ektb("%d\n", a >= b);
+ektb("%d\n", a == 5);
+ektb("%d\n", b >= 10);

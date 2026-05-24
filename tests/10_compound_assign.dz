@@ -1,0 +1,26 @@
+// Test: compound assignment and increment/decrement
+dir x : tabi3i = 10;
+
+x += 5;
+ektb("%lld\n", x);
+
+x -= 3;
+ektb("%lld\n", x);
+
+x *= 2;
+ektb("%lld\n", x);
+
+x /= 4;
+ektb("%lld\n", x);
+
+x %= 2;
+ektb("%lld\n", x);
+
+// Increment / decrement
+dir y : tabi3i = 0;
+y++;
+ektb("%lld\n", y);
+y++;
+ektb("%lld\n", y);
+y--;
+ektb("%lld\n", y);

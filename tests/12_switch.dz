@@ -1,0 +1,15 @@
+// Test: bdl (switch) / khyr (case)
+dir code : tabi3i = 2;
+bdl (code) {
+    khyr 1: ektb("wahd\n");
+    khyr 2: ektb("zouj\n");
+    khyr 3: ektb("tlata\n");
+}
+
+dir code2 : tabi3i = 5;
+bdl (code2) {
+    khyr 1: ektb("hit\n");
+    khyr 2: ektb("hit\n");
+    khyr 3: ektb("hit\n");
+}
+ektb("no match ok\n");

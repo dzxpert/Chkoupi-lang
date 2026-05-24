@@ -12,6 +12,8 @@ static const std::unordered_map<std::string, TokenKind> KEYWORDS = {
     {"idha_mknch",  TokenKind::Idha_mknch},
     {"ab9a_dor",    TokenKind::Ab9a_dor},
     {"dor",         TokenKind::Dor},
+    {"a7bss",       TokenKind::A7bss},
+    {"kml",         TokenKind::Kml},
     // Switch / case
     {"bdl",         TokenKind::Bdl},
     {"khyr",        TokenKind::Khyr},
@@ -180,14 +182,29 @@ std::vector<Token> Lexer::tokenize() {
         // Operators and punctuation
         advance();
         switch (c) {
-            case '+': tokens.push_back(makeToken(TokenKind::Plus,      "+")); break;
+            case '+':
+                if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::PlusEq,    "+=")); }
+                else if (peek() == '+') { advance(); tokens.push_back(makeToken(TokenKind::PlusPlus, "++")); }
+                else               tokens.push_back(makeToken(TokenKind::Plus, "+"));
+                break;
             case '-':
-                if (peek() == '>') { advance(); tokens.push_back(makeToken(TokenKind::Arrow, "->")); }
+                if (peek() == '>') { advance(); tokens.push_back(makeToken(TokenKind::Arrow,      "->")); }
+                else if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::MinusEq,    "-=")); }
+                else if (peek() == '-') { advance(); tokens.push_back(makeToken(TokenKind::MinusMinus, "--")); }
                 else               tokens.push_back(makeToken(TokenKind::Minus, "-"));
                 break;
-            case '*': tokens.push_back(makeToken(TokenKind::Star,      "*")); break;
-            case '/': tokens.push_back(makeToken(TokenKind::Slash,     "/")); break;
-            case '%': tokens.push_back(makeToken(TokenKind::Percent,   "%")); break;
+            case '*':
+                if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::StarEq,    "*=")); }
+                else               tokens.push_back(makeToken(TokenKind::Star, "*"));
+                break;
+            case '/':
+                if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::SlashEq,   "/=")); }
+                else               tokens.push_back(makeToken(TokenKind::Slash, "/"));
+                break;
+            case '%':
+                if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::PercentEq, "%=")); }
+                else               tokens.push_back(makeToken(TokenKind::Percent, "%"));
+                break;
             case '=':
                 if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::EqEq,   "==")); }
                 else               tokens.push_back(makeToken(TokenKind::Eq, "="));

@@ -1,0 +1,25 @@
+// Test: recursive functions
+dalla factorial(n: tabi3i) -> tabi3i {
+    idha (n <= 1) {
+        raja3 1;
+    }
+    raja3 n * factorial(n - 1);
+}
+
+dalla fib(n: tabi3i) -> tabi3i {
+    idha (n <= 0) {
+        raja3 0;
+    }
+    idha (n == 1) {
+        raja3 1;
+    }
+    raja3 fib(n - 1) + fib(n - 2);
+}
+
+ektb("%lld\n", factorial(0));
+ektb("%lld\n", factorial(1));
+ektb("%lld\n", factorial(5));
+ektb("%lld\n", factorial(10));
+ektb("%lld\n", fib(0));
+ektb("%lld\n", fib(1));
+ektb("%lld\n", fib(10));

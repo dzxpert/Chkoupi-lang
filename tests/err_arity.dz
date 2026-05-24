@@ -1,0 +1,5 @@
+// Error test: wrong number of arguments
+dalla add(a: tabi3i, b: tabi3i) -> tabi3i {
+    raja3 a + b;
+}
+dir x : tabi3i = add(1);

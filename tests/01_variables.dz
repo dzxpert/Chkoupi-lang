@@ -1,0 +1,12 @@
+// Test: variable declarations, type annotations, type inference
+dir x : tabi3i = 42;
+dir y = 100;
+dima PI : 3ouchri = 3.14;
+dir name : nass = "brahim";
+dir flag : 5iyar = sa7;
+
+ektb("%lld\n", x);
+ektb("%lld\n", y);
+ektb("%lf\n", PI);
+ektb("%s\n", name);
+ektb("%d\n", flag);

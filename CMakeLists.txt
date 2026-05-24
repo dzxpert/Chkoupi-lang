@@ -24,6 +24,7 @@ set(SOURCES
     src/main.cpp
     src/Lexer.cpp
     src/Parser.cpp
+    src/Sema.cpp
     src/Codegen.cpp
 )
 

@@ -113,6 +113,12 @@ struct ReturnStmt : Stmt {
     ExprPtr value;
 };
 
+// a7bss (break)
+struct BreakStmt : Stmt {};
+
+// kml (continue)
+struct ContinueStmt : Stmt {};
+
 // Bare expression statement
 struct ExprStmt : Stmt {
     ExprPtr expr;

@@ -25,6 +25,10 @@ jobs:
       - name: Build Release
         run: cmake --build build --config Release
 
+      - name: Run tests
+        shell: bash
+        run: bash tests/run_tests.sh build/Release/chkoupi.exe
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -47,6 +51,9 @@ jobs:
 
       - name: Build
         run: cmake --build build
+
+      - name: Run tests
+        run: bash tests/run_tests.sh build/chkoupi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

@@ -67,6 +67,8 @@ StmtPtr Parser::parseStmt() {
     if (check(TokenKind::Ab9a_dor))   return parseWhile();
     if (check(TokenKind::Dor))        return parseFor();
     if (check(TokenKind::Raja3))      return parseReturn();
+    if (check(TokenKind::A7bss))      return parseBreak();
+    if (check(TokenKind::Kml))        return parseContinue();
     if (check(TokenKind::Dalla))      return parseFuncDecl();
     if (check(TokenKind::Bdl))        return parseSwitch();
     if (check(TokenKind::Jarb))       return parseTryCatch();
@@ -126,6 +128,7 @@ StmtPtr Parser::parseRead() {
 }
 
 // idha (cond) { ... } idha_mknch { ... }
+// idha (cond) { ... } idha_mknch idha (cond2) { ... } idha_mknch { ... }
 StmtPtr Parser::parseIf() {
     advance(); // consume idha
     expect(TokenKind::LParen, "Expected '(' after idha");
@@ -133,8 +136,14 @@ StmtPtr Parser::parseIf() {
     s->condition = parseExpr();
     expect(TokenKind::RParen, "Expected ')'");
     s->thenBlock = parseBlock();
-    if (match(TokenKind::Idha_mknch))
-        s->elseBlock = parseBlock();
+    if (match(TokenKind::Idha_mknch)) {
+        if (check(TokenKind::Idha)) {
+            // else-if chain: wrap nested if as a single statement in elseBlock
+            s->elseBlock.push_back(parseIf());
+        } else {
+            s->elseBlock = parseBlock();
+        }
+    }
     return s;
 }
 
@@ -180,6 +189,20 @@ StmtPtr Parser::parseReturn() {
         s->value = parseExpr();
     expect(TokenKind::Semicolon, "Expected ';' after raja3");
     return s;
+}
+
+// a7bss;
+StmtPtr Parser::parseBreak() {
+    advance(); // consume a7bss
+    expect(TokenKind::Semicolon, "Expected ';' after a7bss");
+    return std::make_unique<BreakStmt>();
+}
+
+// kml;
+StmtPtr Parser::parseContinue() {
+    advance(); // consume kml
+    expect(TokenKind::Semicolon, "Expected ';' after kml");
+    return std::make_unique<ContinueStmt>();
 }
 
 // dalla name(p: tabi3i, ...) -> tabi3i { ... }
@@ -261,6 +284,23 @@ std::vector<StmtPtr> Parser::parseBlock() {
 // ── Expressions ───────────────────────────────────────────────────────────────
 ExprPtr Parser::parseExpr()   { return parseAssign(); }
 
+static std::string compoundToOp(TokenKind k) {
+    switch (k) {
+        case TokenKind::PlusEq:    return "+";
+        case TokenKind::MinusEq:   return "-";
+        case TokenKind::StarEq:    return "*";
+        case TokenKind::SlashEq:   return "/";
+        case TokenKind::PercentEq: return "%";
+        default:                   return "";
+    }
+}
+
+static bool isCompoundAssign(TokenKind k) {
+    return k == TokenKind::PlusEq  || k == TokenKind::MinusEq ||
+           k == TokenKind::StarEq  || k == TokenKind::SlashEq ||
+           k == TokenKind::PercentEq;
+}
+
 ExprPtr Parser::parseAssign() {
     if (check(TokenKind::Identifier) && peek(1).kind == TokenKind::Eq) {
         auto name = advance().lexeme;
@@ -269,6 +309,23 @@ ExprPtr Parser::parseAssign() {
         auto e = std::make_unique<AssignExpr>();
         e->name = name;
         e->value = std::move(val);
+        return e;
+    }
+    // Compound assignment: x += expr  →  x = x + expr
+    if (check(TokenKind::Identifier) && isCompoundAssign(peek(1).kind)) {
+        auto name = advance().lexeme;
+        auto op = compoundToOp(advance().kind);
+        auto rhs = parseAssign();
+        // Build: x = x <op> rhs
+        auto varRef = std::make_unique<VarExpr>();
+        varRef->name = name;
+        auto bin = std::make_unique<BinaryExpr>();
+        bin->op = op;
+        bin->lhs = std::move(varRef);
+        bin->rhs = std::move(rhs);
+        auto e = std::make_unique<AssignExpr>();
+        e->name = name;
+        e->value = std::move(bin);
         return e;
     }
     return parseOr();
@@ -371,6 +428,22 @@ ExprPtr Parser::parseCall() {
                     e->args.push_back(parseExpr());
             }
             expect(TokenKind::RParen, "Expected ')'");
+            return e;
+        }
+        // Postfix ++ / -- : desugar x++ to x = x + 1
+        if (check(TokenKind::PlusPlus) || check(TokenKind::MinusMinus)) {
+            std::string op = (advance().kind == TokenKind::PlusPlus) ? "+" : "-";
+            auto varRef = std::make_unique<VarExpr>();
+            varRef->name = v->name;
+            auto one = std::make_unique<IntLitExpr>();
+            one->value = 1;
+            auto bin = std::make_unique<BinaryExpr>();
+            bin->op = op;
+            bin->lhs = std::move(varRef);
+            bin->rhs = std::move(one);
+            auto e = std::make_unique<AssignExpr>();
+            e->name = v->name;
+            e->value = std::move(bin);
             return e;
         }
     }

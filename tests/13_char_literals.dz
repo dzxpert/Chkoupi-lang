@@ -1,0 +1,9 @@
+// Test: char literals (7arf)
+dir c1 : 7arf = 'A';
+dir c2 : 7arf = 'z';
+dir newline : 7arf = '\n';
+
+ektb("%c\n", c1);
+ektb("%c\n", c2);
+ektb("%c", newline);
+ektb("ok\n");

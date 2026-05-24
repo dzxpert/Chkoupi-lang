@@ -1,0 +1,7 @@
+// Test: while loop
+dir i : tabi3i = 0;
+ab9a_dor (i < 5) {
+    ektb("%lld\n", i);
+    i = i + 1;
+}
+ektb("done\n");

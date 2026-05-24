@@ -1,0 +1,2 @@
+// Error test: undefined function
+dir x : tabi3i = foo(1, 2);

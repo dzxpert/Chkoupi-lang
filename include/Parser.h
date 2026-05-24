@@ -30,6 +30,8 @@ private:
     StmtPtr parseTryCatch();               // jarb / ila_ghalt
     StmtPtr parseImport();                 // jibli
     StmtPtr parseReturn();                 // raja3
+    StmtPtr parseBreak();                  // a7bss
+    StmtPtr parseContinue();               // kml
     StmtPtr parseFuncDecl();               // dalla
     std::vector<StmtPtr> parseBlock();
 

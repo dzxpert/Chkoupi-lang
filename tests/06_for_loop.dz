@@ -1,0 +1,9 @@
+// Test: for loop with dir init
+dor (dir i = 0; i < 5; i = i + 1) {
+    ektb("%lld\n", i);
+}
+
+// Test: for loop with increment operator
+dor (dir j = 10; j < 13; j++) {
+    ektb("%lld\n", j);
+}

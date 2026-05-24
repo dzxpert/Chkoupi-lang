@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 class Codegen {
 public:
@@ -23,8 +24,15 @@ private:
 
     // Symbol table: name -> alloca instruction
     std::map<std::string, llvm::AllocaInst*> namedValues;
-    // Const flag: name -> true if ab9a_dayr
+    // Const flag: name -> true if dima
     std::map<std::string, bool>              constFlags;
+
+    // Loop context stack for break/continue
+    struct LoopContext {
+        llvm::BasicBlock* breakBB;     // where a7bss jumps to
+        llvm::BasicBlock* continueBB;  // where kml jumps to
+    };
+    std::vector<LoopContext>                 loopStack;
 
     // Helpers
     llvm::Type*      getLLVMType(const std::string& typeName);
@@ -46,6 +54,8 @@ private:
     void     genSwitch(const SwitchStmt& s);
     void     genTryCatch(const TryCatchStmt& s);
     void     genReturn(const ReturnStmt& s);
+    void     genBreak();
+    void     genContinue();
     void     genFunc(const FuncDecl& s);
     void     genBlock(const std::vector<StmtPtr>& block);
 

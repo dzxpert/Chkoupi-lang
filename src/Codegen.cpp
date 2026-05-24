@@ -151,6 +151,8 @@ void Codegen::genStmt(const Stmt& stmt) {
     if (auto* s = dynamic_cast<const TryCatchStmt*>(&stmt))   { genTryCatch(*s); return; }
     if (dynamic_cast<const ImportStmt*>(&stmt))               { /* resolved at link time */ return; }
     if (auto* s = dynamic_cast<const ReturnStmt*>(&stmt))     { genReturn(*s);  return; }
+    if (dynamic_cast<const BreakStmt*>(&stmt))               { genBreak();     return; }
+    if (dynamic_cast<const ContinueStmt*>(&stmt))            { genContinue();  return; }
     if (auto* s = dynamic_cast<const FuncDecl*>(&stmt))       { genFunc(*s);    return; }
     if (auto* s = dynamic_cast<const ExprStmt*>(&stmt))       { genExpr(*s->expr); return; }
     throw std::runtime_error("Unknown statement type");
@@ -177,7 +179,16 @@ void Codegen::genVarDecl(const VarDeclStmt& s) {
 void Codegen::genPrint(const PrintStmt& s) {
     llvm::Function* printfFn = module->getFunction("printf");
     std::vector<llvm::Value*> args;
-    for (auto& a : s.args) args.push_back(genExpr(*a));
+    for (size_t i = 0; i < s.args.size(); ++i) {
+        llvm::Value* val = genExpr(*s.args[i]);
+        if (i > 0) { // Do not promote the format string itself
+            llvm::Type* ty = val->getType();
+            if (ty->isIntegerTy(1) || ty->isIntegerTy(8)) {
+                val = builder.CreateZExt(val, llvm::Type::getInt32Ty(ctx));
+            }
+        }
+        args.push_back(val);
+    }
     builder.CreateCall(printfFn, args);
 }
 
@@ -220,7 +231,7 @@ void Codegen::genIf(const IfStmt& s) {
     builder.SetInsertPoint(mergeBB);
 }
 
-// ki_tkoon (cond) { ... }
+// ab9a_dor (cond) { ... }
 void Codegen::genWhile(const WhileStmt& s) {
     auto* condBB = llvm::BasicBlock::Create(ctx, "ab9a_dor.cond", currentFunction);
     auto* bodyBB = llvm::BasicBlock::Create(ctx, "ab9a_dor.body", currentFunction);
@@ -233,21 +244,24 @@ void Codegen::genWhile(const WhileStmt& s) {
         cond = builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
     builder.CreateCondBr(cond, bodyBB, endBB);
 
+    loopStack.push_back({endBB, condBB});
     builder.SetInsertPoint(bodyBB);
     genBlock(s.body);
     if (!builder.GetInsertBlock()->getTerminator())
         builder.CreateBr(condBB);
+    loopStack.pop_back();
 
     builder.SetInsertPoint(endBB);
 }
 
-// madam (init; cond; update) { ... }
+// dor (init; cond; update) { ... }
 void Codegen::genFor(const ForStmt& s) {
     genStmt(*s.init);
 
-    auto* condBB = llvm::BasicBlock::Create(ctx, "madam.cond", currentFunction);
-    auto* bodyBB = llvm::BasicBlock::Create(ctx, "madam.body", currentFunction);
-    auto* endBB  = llvm::BasicBlock::Create(ctx, "madam.end",  currentFunction);
+    auto* condBB   = llvm::BasicBlock::Create(ctx, "dor.cond",   currentFunction);
+    auto* bodyBB   = llvm::BasicBlock::Create(ctx, "dor.body",   currentFunction);
+    auto* updateBB = llvm::BasicBlock::Create(ctx, "dor.update", currentFunction);
+    auto* endBB    = llvm::BasicBlock::Create(ctx, "dor.end",    currentFunction);
 
     builder.CreateBr(condBB);
     builder.SetInsertPoint(condBB);
@@ -256,11 +270,16 @@ void Codegen::genFor(const ForStmt& s) {
         cond = builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
     builder.CreateCondBr(cond, bodyBB, endBB);
 
+    loopStack.push_back({endBB, updateBB});
     builder.SetInsertPoint(bodyBB);
     genBlock(s.body);
-    genExpr(*s.update); // update expression (e.g. i = i + 1)
     if (!builder.GetInsertBlock()->getTerminator())
-        builder.CreateBr(condBB);
+        builder.CreateBr(updateBB);
+    loopStack.pop_back();
+
+    builder.SetInsertPoint(updateBB);
+    genExpr(*s.update);
+    builder.CreateBr(condBB);
 
     builder.SetInsertPoint(endBB);
 }
@@ -306,6 +325,23 @@ void Codegen::genReturn(const ReturnStmt& s) {
         builder.CreateRet(genExpr(*s.value));
     else
         builder.CreateRetVoid();
+}
+
+void Codegen::genBreak() {
+    if (loopStack.empty())
+        throw std::runtime_error("a7bss used outside of a loop");
+    builder.CreateBr(loopStack.back().breakBB);
+    // Create unreachable block for any code after break
+    auto* deadBB = llvm::BasicBlock::Create(ctx, "a7bss.after", currentFunction);
+    builder.SetInsertPoint(deadBB);
+}
+
+void Codegen::genContinue() {
+    if (loopStack.empty())
+        throw std::runtime_error("kml used outside of a loop");
+    builder.CreateBr(loopStack.back().continueBB);
+    auto* deadBB = llvm::BasicBlock::Create(ctx, "kml.after", currentFunction);
+    builder.SetInsertPoint(deadBB);
 }
 
 void Codegen::genFunc(const FuncDecl& s) {

@@ -23,6 +23,8 @@ enum class TokenKind {
     Idha_mknch,     // idha_mknch     (else)
     Ab9a_dor,       // ab9a_dor       (while)
     Dor,            // dor            (for)
+    A7bss,          // a7bss          (break)
+    Kml,            // kml            (continue)
 
     // Keywords — switch/case
     Bdl,            // bdl            (switch)
@@ -63,6 +65,8 @@ enum class TokenKind {
     // Arithmetic operators
     Plus,           // +
     Minus,          // -
+    PlusPlus,       // ++
+    MinusMinus,     // --
     Star,           // *
     Slash,          // /
     Percent,        // %
@@ -77,6 +81,11 @@ enum class TokenKind {
 
     // Assignment
     Eq,             // =
+    PlusEq,         // +=
+    MinusEq,        // -=
+    StarEq,         // *=
+    SlashEq,        // /=
+    PercentEq,      // %=
 
     // Punctuation
     LParen,         // (

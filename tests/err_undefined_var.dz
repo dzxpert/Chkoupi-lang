@@ -1,0 +1,2 @@
+// Error test: undefined variable
+ektb("%lld\n", x);

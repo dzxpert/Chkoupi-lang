@@ -14,13 +14,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install LLVM 17
-        run: choco install llvm --version=17.0.6 -y --allow-downgrade
+      - name: Download and Extract LLVM 19
+        run: |
+          curl -LO https://github.com/vovkos/llvm-package-windows/releases/download/v19.1.7/llvm-19.1.7-windows-amd64-msvc17-libcmt.7z
+          7z x llvm-19.1.7-windows-amd64-msvc17-libcmt.7z -ollvm-19
 
       - name: Configure CMake
         run: |
           cmake -B build -G "Visual Studio 17 2022" -A x64 `
-            -DLLVM_DIR="C:/Program Files/LLVM/lib/cmake/llvm"
+            -DLLVM_DIR="${{ github.workspace }}/llvm-19/lib/cmake/llvm"
 
       - name: Build Release
         run: cmake --build build --config Release

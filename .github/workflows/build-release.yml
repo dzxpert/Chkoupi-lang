@@ -16,8 +16,8 @@ jobs:
 
       - name: Download and Extract LLVM 19
         run: |
-          curl -LO https://github.com/vovkos/llvm-package-windows/releases/download/llvm-19.1.7/llvm-19.1.7-windows-amd64-msvc17-libcmt-dbg.7z
-          7z x llvm-19.1.7-windows-amd64-msvc17-libcmt-dbg.7z -ollvm-19
+          curl -LO https://github.com/vovkos/llvm-package-windows/releases/download/llvm-19.1.7/llvm-19.1.7-windows-amd64-msvc17-libcmt.7z
+          7z x llvm-19.1.7-windows-amd64-msvc17-libcmt.7z -ollvm-19
 
       - name: Locate LLVM Config
         id: find_llvm

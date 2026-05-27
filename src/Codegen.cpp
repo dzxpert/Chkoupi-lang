@@ -1,5 +1,6 @@
 #include "Codegen.h"
 #include "AST.h"
+#include <llvm/Config/llvm-config.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/TargetSelect.h>
@@ -133,7 +134,11 @@ void Codegen::writeObjectFile(const std::string& path) const {
     if (ec) throw std::runtime_error("Could not open file: " + ec.message());
 
     llvm::legacy::PassManager pm;
+#if LLVM_VERSION_MAJOR >= 18
     if (tm->addPassesToEmitFile(pm, dest, nullptr, llvm::CodeGenFileType::ObjectFile))
+#else
+    if (tm->addPassesToEmitFile(pm, dest, nullptr, llvm::CGFT_ObjectFile))
+#endif
         throw std::runtime_error("Target cannot emit object file");
     pm.run(*module);
     dest.flush();

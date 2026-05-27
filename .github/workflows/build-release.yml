@@ -14,15 +14,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download and Extract LLVM 19
+      - name: Download and Extract LLVM 17
         run: |
-          curl -LO https://github.com/vovkos/llvm-package-windows/releases/download/v19.1.7/llvm-19.1.7-windows-amd64-msvc17-libcmt.7z
-          7z x llvm-19.1.7-windows-amd64-msvc17-libcmt.7z -ollvm-19
+          curl -LO https://github.com/vovkos/llvm-package-windows/releases/download/llvm-17.0.6/llvm-17.0.6-windows-amd64-msvc17-libcmt-dbg.7z
+          7z x llvm-17.0.6-windows-amd64-msvc17-libcmt-dbg.7z -ollvm-17
 
       - name: Configure CMake
         run: |
           cmake -B build -G "Visual Studio 17 2022" -A x64 `
-            -DLLVM_DIR="${{ github.workspace }}/llvm-19/lib/cmake/llvm"
+            -DLLVM_DIR="${{ github.workspace }}/llvm-17/lib/cmake/llvm"
 
       - name: Build Release
         run: cmake --build build --config Release

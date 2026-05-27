@@ -14,16 +14,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download and Extract LLVM 17
+      - name: Download and Extract LLVM 19
         run: |
-          curl -LO https://github.com/vovkos/llvm-package-windows/releases/download/llvm-17.0.6/llvm-17.0.6-windows-amd64-msvc17-libcmt-dbg.7z
-          7z x llvm-17.0.6-windows-amd64-msvc17-libcmt-dbg.7z -ollvm-17
+          curl -LO https://github.com/vovkos/llvm-package-windows/releases/download/llvm-19.1.7/llvm-19.1.7-windows-amd64-msvc17-libcmt-dbg.7z
+          7z x llvm-19.1.7-windows-amd64-msvc17-libcmt-dbg.7z -ollvm-19
 
       - name: Locate LLVM Config
         id: find_llvm
         shell: pwsh
         run: |
-          $configFile = Get-ChildItem -Path "${{ github.workspace }}/llvm-17" -Filter "LLVMConfig.cmake" -Recurse | Select-Object -First 1
+          $configFile = Get-ChildItem -Path "${{ github.workspace }}/llvm-19" -Filter "LLVMConfig.cmake" -Recurse | Select-Object -First 1
           if ($configFile) {
             $llvmDir = $configFile.Directory.FullName.Replace('\', '/')
             Write-Host "Found LLVMConfig.cmake in: $llvmDir"

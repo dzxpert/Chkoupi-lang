@@ -2,7 +2,7 @@ name: Build & Release
 
 on:
   push:
-    branches: [main]
+    branches: [main, DEV, dev]
     tags: ['v*']
 
 permissions:
@@ -35,51 +35,40 @@ jobs:
           name: chkoupi-windows-x64
           path: build/Release/chkoupi.exe
 
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install LLVM 17
-        run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          sudo apt-get update
-          sudo apt-get install -y llvm-17-dev libllvm17 llvm-17
-
-      - name: Configure CMake
-        run: cmake -B build -DLLVM_DIR="/usr/lib/llvm-17/lib/cmake/llvm"
-
-      - name: Build
-        run: cmake --build build
-
-      - name: Run tests
-        run: bash tests/run_tests.sh build/chkoupi
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: chkoupi-linux-x64
-          path: build/chkoupi
-
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-windows, build-linux]
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/DEV' || github.ref == 'refs/heads/dev'
+    needs: [build-windows]
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
+      - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
+          name: chkoupi-windows-x64
           path: artifacts
 
-      - name: Package binaries
+      - name: Package binary
         run: |
-          cd artifacts/chkoupi-windows-x64 && zip -j ../../chkoupi-windows-x64.zip chkoupi.exe && cd ../..
-          cd artifacts/chkoupi-linux-x64 && chmod +x chkoupi && tar czf ../../chkoupi-linux-x64.tar.gz chkoupi && cd ../..
+          cd artifacts && zip -j ../chkoupi-windows-x64.zip chkoupi.exe && cd ..
 
-      - name: Create GitHub Release
+      - name: Determine Release Type
+        id: release_vars
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "name=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "tag=dev-build" >> $GITHUB_OUTPUT
+            echo "name=Development Build" >> $GITHUB_OUTPUT
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.release_vars.outputs.tag }}
+          name: ${{ steps.release_vars.outputs.name }}
+          prerelease: ${{ steps.release_vars.outputs.prerelease }}
           generate_release_notes: true
           files: |
             chkoupi-windows-x64.zip
-            chkoupi-linux-x64.tar.gz

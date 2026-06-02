@@ -233,7 +233,7 @@ StmtPtr Parser::parseFuncDecl() {
         match(TokenKind::Comma);
     }
     expect(TokenKind::RParen, "Expected ')'");
-    s->returnType = "void";
+    s->returnType = "";
     if (match(TokenKind::Arrow)) {
         s->returnType = parseType();
     }

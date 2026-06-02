@@ -47,6 +47,7 @@ private:
     void declareScanf();
     void declareMalloc();
     std::string inferType(const Expr& expr);
+    const ReturnStmt* findReturnStmt(const std::vector<StmtPtr>& stmts);
 
     // Code generation visitors
     void     genStmt(const Stmt& stmt);

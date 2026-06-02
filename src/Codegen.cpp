@@ -89,6 +89,34 @@ std::string Codegen::inferType(const Expr& expr) {
     return "int";
 }
 
+const ReturnStmt* Codegen::findReturnStmt(const std::vector<StmtPtr>& stmts) {
+    for (auto& s : stmts) {
+        if (auto* r = dynamic_cast<const ReturnStmt*>(s.get())) {
+            return r;
+        }
+        if (auto* ifs = dynamic_cast<const IfStmt*>(s.get())) {
+            if (auto* r = findReturnStmt(ifs->thenBlock)) return r;
+            if (auto* r = findReturnStmt(ifs->elseBlock)) return r;
+        }
+        if (auto* wh = dynamic_cast<const WhileStmt*>(s.get())) {
+            if (auto* r = findReturnStmt(wh->body)) return r;
+        }
+        if (auto* fo = dynamic_cast<const ForStmt*>(s.get())) {
+            if (auto* r = findReturnStmt(fo->body)) return r;
+        }
+        if (auto* sw = dynamic_cast<const SwitchStmt*>(s.get())) {
+            for (auto& c : sw->cases) {
+                if (auto* r = findReturnStmt(c.body)) return r;
+            }
+        }
+        if (auto* tc = dynamic_cast<const TryCatchStmt*>(s.get())) {
+            if (auto* r = findReturnStmt(tc->tryBlock)) return r;
+            if (auto* r = findReturnStmt(tc->catchBlock)) return r;
+        }
+    }
+    return nullptr;
+}
+
 llvm::AllocaInst* Codegen::createEntryAlloca(llvm::Function* fn,
                                                const std::string& name,
                                                llvm::Type* ty) {
@@ -117,7 +145,12 @@ void Codegen::generate(const Program& prog) {
     // First pass: register function return types
     for (auto& s : prog.stmts) {
         if (auto* f = dynamic_cast<const FuncDecl*>(s.get())) {
-            functionReturnTypes[f->name] = f->returnType;
+            std::string retType = f->returnType;
+            if (retType.empty()) {
+                const ReturnStmt* r = findReturnStmt(f->body);
+                retType = (r && r->value) ? inferType(*r->value) : "void";
+            }
+            functionReturnTypes[f->name] = retType;
         }
     }
 
@@ -432,7 +465,8 @@ void Codegen::genFunc(const FuncDecl& s) {
     // ── Build inner function ──────────────────────────────────────────────────
     std::vector<llvm::Type*> paramTypes;
     for (auto& p : s.params) paramTypes.push_back(getLLVMType(p.type));
-    auto* retTy = getLLVMType(s.returnType);
+    std::string retTypeStr = functionReturnTypes[s.name];
+    auto* retTy = getLLVMType(retTypeStr);
     auto* ft    = llvm::FunctionType::get(retTy, paramTypes, false);
     auto* fn    = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, s.name, module.get());
 

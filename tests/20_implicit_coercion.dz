@@ -1,0 +1,31 @@
+// Test: implicit type coercion (promotion and demotion)
+dir x : 3ouchri = 5;  // 5 (int) promoted to double
+ektb("x = %lf\n", x);
+
+dir y : tabi3i = 3.14; // 3.14 (double) demoted to i64
+ektb("y = %lld\n", y);
+
+// Mixed binary arithmetic
+dir z1 = 10 + 2.5; // 10 promoted to double
+ektb("z1 = %lf\n", z1);
+
+dir z2 = 1.5 * 4;  // 4 promoted to double
+ektb("z2 = %lf\n", z2);
+
+// Assignments
+x = 42;
+ektb("x after assign = %lf\n", x);
+
+y = 9.99;
+ektb("y after assign = %lld\n", y);
+
+// Mixed comparisons
+idha (3.5 > 2) {
+    ektb("3.5 > 2 is sa7\n");
+} idha_mknch {
+    ektb("3.5 > 2 is ghalt\n");
+}
+
+idha (2 == 2.0) {
+    ektb("2 == 2.0 is sa7\n");
+}

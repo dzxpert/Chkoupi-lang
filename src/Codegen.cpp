@@ -230,7 +230,17 @@ void Codegen::genBlock(const std::vector<StmtPtr>& block) {
 
 void Codegen::genVarDecl(const VarDeclStmt& s) {
     llvm::Value* initVal = genExpr(*s.init);
-    llvm::Type*  ty      = initVal->getType();
+    llvm::Type*  ty;
+    if (!s.type.empty()) {
+        ty = getLLVMType(s.type);
+        if (ty->isDoubleTy() && initVal->getType()->isIntegerTy()) {
+            initVal = builder.CreateSIToFP(initVal, ty);
+        } else if (ty->isIntegerTy() && initVal->getType()->isDoubleTy()) {
+            initVal = builder.CreateFPToSI(initVal, ty);
+        }
+    } else {
+        ty = initVal->getType();
+    }
     auto* alloca = createEntryAlloca(currentFunction, s.name, ty);
     builder.CreateStore(initVal, alloca);
     namedValues[s.name] = alloca;
@@ -491,6 +501,16 @@ llvm::Value* Codegen::genBinary(const BinaryExpr& e) {
 
     llvm::Value* L = genExpr(*e.lhs);
     llvm::Value* R = genExpr(*e.rhs);
+
+    // Promote mixed float/int operands to float (except modulo)
+    if (e.op != "%") {
+        if (L->getType()->isDoubleTy() && R->getType()->isIntegerTy()) {
+            R = builder.CreateSIToFP(R, llvm::Type::getDoubleTy(ctx));
+        } else if (L->getType()->isIntegerTy() && R->getType()->isDoubleTy()) {
+            L = builder.CreateSIToFP(L, llvm::Type::getDoubleTy(ctx));
+        }
+    }
+
     bool isFloat = L->getType()->isDoubleTy();
 
     if (e.op == "+")   return isFloat ? builder.CreateFAdd(L, R) : builder.CreateAdd(L, R);
@@ -590,6 +610,14 @@ llvm::Value* Codegen::genAssign(const AssignExpr& e) {
     if (constFlags.count(e.name) && constFlags[e.name])
         throw std::runtime_error("Cannot assign to constant: " + e.name);
     llvm::Value* val = genExpr(*e.value);
+
+    llvm::Type* varTy = it->second->getAllocatedType();
+    if (varTy->isDoubleTy() && val->getType()->isIntegerTy()) {
+        val = builder.CreateSIToFP(val, varTy);
+    } else if (varTy->isIntegerTy() && val->getType()->isDoubleTy()) {
+        val = builder.CreateFPToSI(val, varTy);
+    }
+
     builder.CreateStore(val, it->second);
     return val;
 }

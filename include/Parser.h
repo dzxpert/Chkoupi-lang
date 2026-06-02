@@ -34,6 +34,7 @@ private:
     StmtPtr parseContinue();               // kml
     StmtPtr parseFuncDecl();               // dalla
     std::vector<StmtPtr> parseBlock();
+    std::string          parseType();
 
     // Expressions (Pratt-style precedence)
     ExprPtr parseExpr();

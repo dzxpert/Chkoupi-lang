@@ -1,0 +1,12 @@
+dir nums : jadwl<tabi3i> = [10, 20, 30];
+ektb("length = %lld\n", tool(nums));
+ektb("nums[0] = %lld\n", nums[0]);
+ektb("nums[1] = %lld\n", nums[1]);
+ektb("nums[2] = %lld\n", nums[2]);
+
+nums[1] = 42;
+ektb("nums[1] after assign = %lld\n", nums[1]);
+
+dir floating : jadwl<3ouchri> = [1.5, 2.5];
+ektb("floating[0] = %lf\n", floating[0]);
+ektb("floating[1] = %lf\n", floating[1]);

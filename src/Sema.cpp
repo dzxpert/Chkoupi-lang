@@ -32,6 +32,7 @@ void Sema::analyze(const Program& prog) {
     // Register built-in functions
     functions["printf"] = {-1, "int"};   // varargs
     functions["scanf"]  = {-1, "int"};
+    functions["tool"]   = {1, "int"};
 
     pushScope(); // global scope
 
@@ -155,6 +156,22 @@ void Sema::checkExpr(const Expr& expr) {
     if (dynamic_cast<const StringLitExpr*>(&expr)) return;
     if (dynamic_cast<const BoolLitExpr*>(&expr))   return;
     if (dynamic_cast<const CharLitExpr*>(&expr))   return;
+
+    if (auto* e = dynamic_cast<const ArrayLitExpr*>(&expr)) {
+        for (auto& elem : e->elements) checkExpr(*elem);
+        return;
+    }
+    if (auto* e = dynamic_cast<const IndexExpr*>(&expr)) {
+        checkExpr(*e->target);
+        checkExpr(*e->index);
+        return;
+    }
+    if (auto* e = dynamic_cast<const IndexAssignExpr*>(&expr)) {
+        checkExpr(*e->target);
+        checkExpr(*e->index);
+        checkExpr(*e->value);
+        return;
+    }
 
     if (auto* e = dynamic_cast<const VarExpr*>(&expr)) {
         if (!lookupVar(e->name))

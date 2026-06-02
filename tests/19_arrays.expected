@@ -1,0 +1,7 @@
+length = 3
+nums[0] = 10
+nums[1] = 20
+nums[2] = 30
+nums[1] after assign = 42
+floating[0] = 1.500000
+floating[1] = 2.500000

@@ -26,6 +26,9 @@ private:
     std::map<std::string, llvm::AllocaInst*> namedValues;
     // Const flag: name -> true if dima
     std::map<std::string, bool>              constFlags;
+    // Chkoupi types for variables and functions (used for AST-based type inference)
+    std::map<std::string, std::string>       variableTypes;
+    std::map<std::string, std::string>       functionReturnTypes;
 
     // Loop context stack for break/continue
     struct LoopContext {
@@ -42,6 +45,8 @@ private:
                                         llvm::Type* ty);
     void declarePrintf();
     void declareScanf();
+    void declareMalloc();
+    std::string inferType(const Expr& expr);
 
     // Code generation visitors
     void     genStmt(const Stmt& stmt);
@@ -66,4 +71,7 @@ private:
     llvm::Value* genUnary(const UnaryExpr& e);
     llvm::Value* genCall(const CallExpr& e);
     llvm::Value* genAssign(const AssignExpr& e);
+    llvm::Value* genArrayLit(const ArrayLitExpr& e);
+    llvm::Value* genIndex(const IndexExpr& e);
+    llvm::Value* genIndexAssign(const IndexAssignExpr& e);
 };

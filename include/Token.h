@@ -52,6 +52,7 @@ enum class TokenKind {
     TypeFargh,      // fargh          (void)
     Type7arf,       // 7arf           (char)
     TypeNass,       // nass           (string)
+    TypeJadwl,      // jadwl          (array)
 
     // Built-ins
     Ektb,           // ektb(...)      (printf)
@@ -92,6 +93,8 @@ enum class TokenKind {
     RParen,         // )
     LBrace,         // {
     RBrace,         // }
+    LBracket,       // [
+    RBracket,       // ]
     Semicolon,      // ;
     Colon,          // :
     Comma,          // ,

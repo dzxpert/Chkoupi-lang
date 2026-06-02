@@ -35,6 +35,7 @@ static const std::unordered_map<std::string, TokenKind> KEYWORDS = {
     {"fargh",       TokenKind::TypeFargh},
     {"7arf",        TokenKind::Type7arf},
     {"nass",        TokenKind::TypeNass},
+    {"jadwl",       TokenKind::TypeJadwl},
     // Built-ins
     {"ektb",        TokenKind::Ektb},
     {"a9ra",        TokenKind::A9ra},
@@ -225,6 +226,8 @@ std::vector<Token> Lexer::tokenize() {
             case ')': tokens.push_back(makeToken(TokenKind::RParen,    ")")); break;
             case '{': tokens.push_back(makeToken(TokenKind::LBrace,    "{")); break;
             case '}': tokens.push_back(makeToken(TokenKind::RBrace,    "}")); break;
+            case '[': tokens.push_back(makeToken(TokenKind::LBracket,  "[")); break;
+            case ']': tokens.push_back(makeToken(TokenKind::RBracket,  "]")); break;
             case ';': tokens.push_back(makeToken(TokenKind::Semicolon, ";")); break;
             case ':': tokens.push_back(makeToken(TokenKind::Colon,     ":")); break;
             case ',': tokens.push_back(makeToken(TokenKind::Comma,     ",")); break;

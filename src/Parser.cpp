@@ -54,7 +54,22 @@ static std::string tokenToType(TokenKind k) {
 static bool isTypeToken(TokenKind k) {
     return k == TokenKind::TypeTabi3i  || k == TokenKind::Type3ouchri ||
            k == TokenKind::Type5iyar   || k == TokenKind::TypeFargh   ||
-           k == TokenKind::Type7arf    || k == TokenKind::TypeNass;
+           k == TokenKind::Type7arf    || k == TokenKind::TypeNass    ||
+           k == TokenKind::TypeJadwl;
+}
+
+std::string Parser::parseType() {
+    if (check(TokenKind::TypeJadwl)) {
+        advance(); // consume jadwl
+        expect(TokenKind::Lt, "Expected '<' after jadwl type");
+        std::string elemType = parseType();
+        expect(TokenKind::Gt, "Expected '>' after element type");
+        return "jadwl<" + elemType + ">";
+    }
+    if (isTypeToken(peek().kind)) {
+        return tokenToType(advance().kind);
+    }
+    throw std::runtime_error("Expected type name at line " + std::to_string(peek().line));
 }
 
 // ── Statements ────────────────────────────────────────────────────────────────
@@ -90,9 +105,7 @@ StmtPtr Parser::parseVarDecl(bool isConst) {
 
     // Optional type annotation  : tabi3i
     if (match(TokenKind::Colon)) {
-        if (!isTypeToken(peek().kind))
-            throw std::runtime_error("Expected type name at line " + std::to_string(peek().line));
-        s->type = tokenToType(advance().kind);
+        s->type = parseType();
     }
 
     expect(TokenKind::Eq, "Expected '=' in variable declaration");
@@ -215,18 +228,14 @@ StmtPtr Parser::parseFuncDecl() {
         FuncDecl::Param p;
         p.name = expect(TokenKind::Identifier, "Expected param name").lexeme;
         expect(TokenKind::Colon, "Expected ':' after param name");
-        if (!isTypeToken(peek().kind))
-            throw std::runtime_error("Expected type name at line " + std::to_string(peek().line));
-        p.type = tokenToType(advance().kind);
+        p.type = parseType();
         s->params.push_back(std::move(p));
         match(TokenKind::Comma);
     }
     expect(TokenKind::RParen, "Expected ')'");
     s->returnType = "void";
     if (match(TokenKind::Arrow)) {
-        if (!isTypeToken(peek().kind))
-            throw std::runtime_error("Expected return type at line " + std::to_string(peek().line));
-        s->returnType = tokenToType(advance().kind);
+        s->returnType = parseType();
     }
     s->body = parseBlock();
     return s;
@@ -302,33 +311,52 @@ static bool isCompoundAssign(TokenKind k) {
 }
 
 ExprPtr Parser::parseAssign() {
-    if (check(TokenKind::Identifier) && peek(1).kind == TokenKind::Eq) {
-        auto name = advance().lexeme;
-        advance(); // consume =
-        auto val = parseAssign();
-        auto e = std::make_unique<AssignExpr>();
-        e->name = name;
-        e->value = std::move(val);
-        return e;
+    if (check(TokenKind::Identifier)) {
+        if (peek(1).kind == TokenKind::Eq) {
+            auto name = advance().lexeme;
+            advance(); // consume =
+            auto val = parseAssign();
+            auto e = std::make_unique<AssignExpr>();
+            e->name = name;
+            e->value = std::move(val);
+            return e;
+        }
+        if (isCompoundAssign(peek(1).kind)) {
+            auto name = advance().lexeme;
+            auto op = compoundToOp(advance().kind);
+            auto rhs = parseAssign();
+            // Build: x = x <op> rhs
+            auto varRef = std::make_unique<VarExpr>();
+            varRef->name = name;
+            auto bin = std::make_unique<BinaryExpr>();
+            bin->op = op;
+            bin->lhs = std::move(varRef);
+            bin->rhs = std::move(rhs);
+            auto e = std::make_unique<AssignExpr>();
+            e->name = name;
+            e->value = std::move(bin);
+            return e;
+        }
     }
-    // Compound assignment: x += expr  →  x = x + expr
-    if (check(TokenKind::Identifier) && isCompoundAssign(peek(1).kind)) {
-        auto name = advance().lexeme;
-        auto op = compoundToOp(advance().kind);
+
+    auto lhs = parseOr();
+    if (match(TokenKind::Eq)) {
         auto rhs = parseAssign();
-        // Build: x = x <op> rhs
-        auto varRef = std::make_unique<VarExpr>();
-        varRef->name = name;
-        auto bin = std::make_unique<BinaryExpr>();
-        bin->op = op;
-        bin->lhs = std::move(varRef);
-        bin->rhs = std::move(rhs);
-        auto e = std::make_unique<AssignExpr>();
-        e->name = name;
-        e->value = std::move(bin);
-        return e;
+        if (auto* v = dynamic_cast<VarExpr*>(lhs.get())) {
+            auto e = std::make_unique<AssignExpr>();
+            e->name = v->name;
+            e->value = std::move(rhs);
+            return e;
+        } else if (auto* idx = dynamic_cast<IndexExpr*>(lhs.get())) {
+            auto e = std::make_unique<IndexAssignExpr>();
+            e->target = std::move(idx->target);
+            e->index = std::move(idx->index);
+            e->value = std::move(rhs);
+            return e;
+        }
+        throw std::runtime_error("Invalid assignment target");
     }
-    return parseOr();
+    return lhs;
 }
 
 ExprPtr Parser::parseOr() {
@@ -416,10 +444,12 @@ ExprPtr Parser::parseUnary() {
 }
 
 ExprPtr Parser::parseCall() {
-    auto callee = parsePrimary();
-    if (auto* v = dynamic_cast<VarExpr*>(callee.get())) {
+    auto expr = parsePrimary();
+    while (true) {
         if (check(TokenKind::LParen)) {
-            advance();
+            auto* v = dynamic_cast<VarExpr*>(expr.get());
+            if (!v) break;
+            advance(); // consume (
             auto e = std::make_unique<CallExpr>();
             e->callee = v->name;
             if (!check(TokenKind::RParen)) {
@@ -428,10 +458,19 @@ ExprPtr Parser::parseCall() {
                     e->args.push_back(parseExpr());
             }
             expect(TokenKind::RParen, "Expected ')'");
-            return e;
-        }
-        // Postfix ++ / -- : desugar x++ to x = x + 1
-        if (check(TokenKind::PlusPlus) || check(TokenKind::MinusMinus)) {
+            expr = std::move(e);
+        } else if (match(TokenKind::LBracket)) {
+            auto indexExpr = parseExpr();
+            expect(TokenKind::RBracket, "Expected ']'");
+            auto idx = std::make_unique<IndexExpr>();
+            idx->target = std::move(expr);
+            idx->index = std::move(indexExpr);
+            expr = std::move(idx);
+        } else if (check(TokenKind::PlusPlus) || check(TokenKind::MinusMinus)) {
+            auto* v = dynamic_cast<VarExpr*>(expr.get());
+            if (!v) {
+                throw std::runtime_error("Increment/decrement operand must be a variable");
+            }
             std::string op = (advance().kind == TokenKind::PlusPlus) ? "+" : "-";
             auto varRef = std::make_unique<VarExpr>();
             varRef->name = v->name;
@@ -444,13 +483,27 @@ ExprPtr Parser::parseCall() {
             auto e = std::make_unique<AssignExpr>();
             e->name = v->name;
             e->value = std::move(bin);
-            return e;
+            expr = std::move(e);
+            break; // Increment is assignment and is not chainable
+        } else {
+            break;
         }
     }
-    return callee;
+    return expr;
 }
 
 ExprPtr Parser::parsePrimary() {
+    if (match(TokenKind::LBracket)) {
+        auto e = std::make_unique<ArrayLitExpr>();
+        if (!check(TokenKind::RBracket)) {
+            e->elements.push_back(parseExpr());
+            while (match(TokenKind::Comma)) {
+                e->elements.push_back(parseExpr());
+            }
+        }
+        expect(TokenKind::RBracket, "Expected ']'");
+        return e;
+    }
     if (check(TokenKind::Integer)) {
         auto e = std::make_unique<IntLitExpr>();
         e->value = std::stoll(advance().lexeme);

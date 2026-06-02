@@ -26,10 +26,16 @@ Codegen::Codegen()
 
     declarePrintf();
     declareScanf();
+    declareMalloc();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 llvm::Type* Codegen::getLLVMType(const std::string& t) {
+    if (t.rfind("jadwl<", 0) == 0) {
+        std::string elem = t.substr(6, t.size() - 7);
+        llvm::Type* et = getLLVMType(elem);
+        return llvm::PointerType::getUnqual(et);
+    }
     if (t == "int"    || t == "") return llvm::Type::getInt64Ty(ctx);
     if (t == "float")             return llvm::Type::getDoubleTy(ctx);
     if (t == "bool")              return llvm::Type::getInt1Ty(ctx);
@@ -37,6 +43,50 @@ llvm::Type* Codegen::getLLVMType(const std::string& t) {
     if (t == "string")            return llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx));
     if (t == "void")              return llvm::Type::getVoidTy(ctx);
     throw std::runtime_error("Unknown type: " + t);
+}
+
+void Codegen::declareMalloc() {
+    llvm::FunctionType* ft = llvm::FunctionType::get(
+        llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx)),
+        {llvm::Type::getInt64Ty(ctx)},
+        false);
+    llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "malloc", module.get());
+}
+
+std::string Codegen::inferType(const Expr& expr) {
+    if (dynamic_cast<const IntLitExpr*>(&expr))    return "int";
+    if (dynamic_cast<const FloatLitExpr*>(&expr))  return "float";
+    if (dynamic_cast<const BoolLitExpr*>(&expr))   return "bool";
+    if (dynamic_cast<const CharLitExpr*>(&expr))   return "char";
+    if (dynamic_cast<const StringLitExpr*>(&expr)) return "string";
+    if (auto* e = dynamic_cast<const VarExpr*>(&expr)) {
+        auto it = variableTypes.find(e->name);
+        if (it != variableTypes.end()) return it->second;
+        return "int";
+    }
+    if (auto* e = dynamic_cast<const CallExpr*>(&expr)) {
+        auto it = functionReturnTypes.find(e->callee);
+        if (it != functionReturnTypes.end()) return it->second;
+        return "int";
+    }
+    if (auto* e = dynamic_cast<const IndexExpr*>(&expr)) {
+        std::string targetType = inferType(*e->target);
+        if (targetType.rfind("jadwl<", 0) == 0) {
+            return targetType.substr(6, targetType.size() - 7);
+        }
+        return "int";
+    }
+    if (auto* e = dynamic_cast<const ArrayLitExpr*>(&expr)) {
+        if (e->elements.empty()) return "jadwl<int>";
+        return "jadwl<" + inferType(*e->elements[0]) + ">";
+    }
+    if (auto* e = dynamic_cast<const BinaryExpr*>(&expr)) {
+        return inferType(*e->lhs);
+    }
+    if (auto* e = dynamic_cast<const UnaryExpr*>(&expr)) {
+        return inferType(*e->operand);
+    }
+    return "int";
 }
 
 llvm::AllocaInst* Codegen::createEntryAlloca(llvm::Function* fn,
@@ -64,6 +114,13 @@ void Codegen::declareScanf() {
 
 // ── Top-level ─────────────────────────────────────────────────────────────────
 void Codegen::generate(const Program& prog) {
+    // First pass: register function return types
+    for (auto& s : prog.stmts) {
+        if (auto* f = dynamic_cast<const FuncDecl*>(s.get())) {
+            functionReturnTypes[f->name] = f->returnType;
+        }
+    }
+
     // Create implicit main() if there is no explicit fun main
     bool hasMain = false;
     for (auto& s : prog.stmts)
@@ -178,6 +235,12 @@ void Codegen::genVarDecl(const VarDeclStmt& s) {
     builder.CreateStore(initVal, alloca);
     namedValues[s.name] = alloca;
     constFlags[s.name]  = s.isConst;
+
+    std::string typeStr = s.type;
+    if (typeStr.empty()) {
+        typeStr = inferType(*s.init);
+    }
+    variableTypes[s.name] = typeStr;
 }
 
 // ektb("fmt", args...)  →  printf
@@ -354,6 +417,7 @@ void Codegen::genFunc(const FuncDecl& s) {
     llvm::Function*  savedFn = currentFunction;
     llvm::BasicBlock* savedBB = builder.GetInsertBlock();
     auto savedNamedValues = namedValues; // snapshot outer scope
+    auto savedVariableTypes = variableTypes;
 
     // ── Build inner function ──────────────────────────────────────────────────
     std::vector<llvm::Type*> paramTypes;
@@ -373,6 +437,7 @@ void Codegen::genFunc(const FuncDecl& s) {
         auto* alloca = createEntryAlloca(fn, p.name, arg.getType());
         builder.CreateStore(&arg, alloca);
         namedValues[p.name] = alloca;
+        variableTypes[p.name] = p.type;
     }
 
     genBlock(s.body);
@@ -385,6 +450,7 @@ void Codegen::genFunc(const FuncDecl& s) {
 
     // ── Restore caller context ────────────────────────────────────────────────
     namedValues     = savedNamedValues;
+    variableTypes   = savedVariableTypes;
     currentFunction = savedFn;
     if (savedBB)
         builder.SetInsertPoint(savedBB);
@@ -412,6 +478,9 @@ llvm::Value* Codegen::genExpr(const Expr& expr) {
     if (auto* e = dynamic_cast<const UnaryExpr*>(&expr))    return genUnary(*e);
     if (auto* e = dynamic_cast<const CallExpr*>(&expr))     return genCall(*e);
     if (auto* e = dynamic_cast<const AssignExpr*>(&expr))   return genAssign(*e);
+    if (auto* e = dynamic_cast<const ArrayLitExpr*>(&expr))  return genArrayLit(*e);
+    if (auto* e = dynamic_cast<const IndexExpr*>(&expr))     return genIndex(*e);
+    if (auto* e = dynamic_cast<const IndexAssignExpr*>(&expr)) return genIndexAssign(*e);
     throw std::runtime_error("Unknown expression type");
 }
 
@@ -498,6 +567,15 @@ llvm::Value* Codegen::genUnary(const UnaryExpr& e) {
 }
 
 llvm::Value* Codegen::genCall(const CallExpr& e) {
+    if (e.callee == "tool") {
+        if (e.args.size() != 1)
+            throw std::runtime_error("Built-in function 'tool' expects exactly 1 argument");
+        llvm::Value* arr = genExpr(*e.args[0]);
+        llvm::Value* offset = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), -1);
+        llvm::Value* lenPtr = builder.CreateGEP(llvm::Type::getInt64Ty(ctx), arr, offset);
+        return builder.CreateLoad(llvm::Type::getInt64Ty(ctx), lenPtr, "array.len");
+    }
+
     llvm::Function* fn = module->getFunction(e.callee);
     if (!fn) throw std::runtime_error("Unknown function: " + e.callee);
     std::vector<llvm::Value*> args;
@@ -513,5 +591,79 @@ llvm::Value* Codegen::genAssign(const AssignExpr& e) {
         throw std::runtime_error("Cannot assign to constant: " + e.name);
     llvm::Value* val = genExpr(*e.value);
     builder.CreateStore(val, it->second);
+    return val;
+}
+
+llvm::Value* Codegen::genArrayLit(const ArrayLitExpr& e) {
+    llvm::Function* mallocFn = module->getFunction("malloc");
+    if (!mallocFn) throw std::runtime_error("malloc is not declared");
+
+    if (e.elements.empty()) {
+        llvm::Value* allocSize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 8);
+        llvm::Value* rawPtr = builder.CreateCall(mallocFn, {allocSize});
+        llvm::Value* lenVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 0);
+        builder.CreateStore(lenVal, rawPtr);
+        llvm::Value* byteOffset = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 8);
+        return builder.CreateGEP(llvm::Type::getInt8Ty(ctx), rawPtr, byteOffset);
+    }
+
+    std::vector<llvm::Value*> values;
+    for (auto& elem : e.elements) {
+        values.push_back(genExpr(*elem));
+    }
+
+    llvm::Type* elemType = values[0]->getType();
+    uint64_t elemSize = 8;
+    if (elemType->isIntegerTy(1) || elemType->isIntegerTy(8)) {
+        elemSize = 1;
+    }
+
+    llvm::Value* allocSize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 8 + values.size() * elemSize);
+    llvm::Value* rawPtr = builder.CreateCall(mallocFn, {allocSize});
+
+    llvm::Value* lenVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), values.size());
+    builder.CreateStore(lenVal, rawPtr);
+
+    llvm::Value* byteOffset = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 8);
+    llvm::Value* elemZeroPtr = builder.CreateGEP(llvm::Type::getInt8Ty(ctx), rawPtr, byteOffset);
+
+    for (size_t i = 0; i < values.size(); ++i) {
+        llvm::Value* idxVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), i);
+        llvm::Value* elemPtr = builder.CreateGEP(elemType, elemZeroPtr, idxVal);
+        builder.CreateStore(values[i], elemPtr);
+    }
+
+    return elemZeroPtr;
+}
+
+llvm::Value* Codegen::genIndex(const IndexExpr& e) {
+    llvm::Value* arr = genExpr(*e.target);
+    llvm::Value* idx = genExpr(*e.index);
+
+    std::string targetType = inferType(*e.target);
+    std::string elemTypeStr = "int";
+    if (targetType.rfind("jadwl<", 0) == 0) {
+        elemTypeStr = targetType.substr(6, targetType.size() - 7);
+    }
+    llvm::Type* elemType = getLLVMType(elemTypeStr);
+
+    llvm::Value* elemPtr = builder.CreateGEP(elemType, arr, idx);
+    return builder.CreateLoad(elemType, elemPtr, "array.index");
+}
+
+llvm::Value* Codegen::genIndexAssign(const IndexAssignExpr& e) {
+    llvm::Value* arr = genExpr(*e.target);
+    llvm::Value* idx = genExpr(*e.index);
+    llvm::Value* val = genExpr(*e.value);
+
+    std::string targetType = inferType(*e.target);
+    std::string elemTypeStr = "int";
+    if (targetType.rfind("jadwl<", 0) == 0) {
+        elemTypeStr = targetType.substr(6, targetType.size() - 7);
+    }
+    llvm::Type* elemType = getLLVMType(elemTypeStr);
+
+    llvm::Value* elemPtr = builder.CreateGEP(elemType, arr, idx);
+    builder.CreateStore(val, elemPtr);
     return val;
 }

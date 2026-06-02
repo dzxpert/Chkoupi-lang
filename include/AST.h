@@ -44,6 +44,21 @@ struct AssignExpr : Expr {
     ExprPtr     value;
 };
 
+struct ArrayLitExpr : Expr {
+    std::vector<ExprPtr> elements;
+};
+
+struct IndexExpr : Expr {
+    ExprPtr target;
+    ExprPtr index;
+};
+
+struct IndexAssignExpr : Expr {
+    ExprPtr target;
+    ExprPtr index;
+    ExprPtr value;
+};
+
 // ── Statements ───────────────────────────────────────────────────────────────
 
 struct Stmt { virtual ~Stmt() = default; };

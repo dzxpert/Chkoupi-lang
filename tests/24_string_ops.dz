@@ -1,0 +1,34 @@
+// Test: String Operations (length, concatenation, comparisons)
+dir s1 = "salam";
+dir s2 = " algeria";
+
+ektb("s1 = %s\n", s1);
+ektb("length of s1 = %lld\n", tool(s1));
+
+// Concatenation
+dir s3 = s1 + s2;
+ektb("concat = %s\n", s3);
+ektb("length of concat = %lld\n", tool(s3));
+
+// Comparisons
+dir a = "apple";
+dir b = "banana";
+dir c = "apple";
+
+idha (a == c) {
+    ektb("apple == apple is sa7\n");
+} idha_mknch {
+    ektb("apple == apple is ghalt\n");
+}
+
+idha (a != b) {
+    ektb("apple != banana is sa7\n");
+}
+
+idha (a < b) {
+    ektb("apple < banana is sa7\n");
+}
+
+idha (b > a) {
+    ektb("banana > apple is sa7\n");
+}

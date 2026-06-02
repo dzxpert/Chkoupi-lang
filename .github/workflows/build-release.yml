@@ -71,6 +71,10 @@ jobs:
     needs: [build-windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
@@ -93,6 +97,14 @@ jobs:
             echo "name=Development Build" >> $GITHUB_OUTPUT
             echo "prerelease=true" >> $GITHUB_OUTPUT
           fi
+
+      - name: Update git tag for dev-build
+        if: github.ref == 'refs/heads/DEV' || github.ref == 'refs/heads/dev'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f dev-build ${{ github.sha }}
+          git push -f origin dev-build
 
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2

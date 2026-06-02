@@ -1,0 +1,8 @@
+s1 = salam
+length of s1 = 5
+concat = salam algeria
+length of concat = 13
+apple == apple is sa7
+apple != banana is sa7
+apple < banana is sa7
+banana > apple is sa7

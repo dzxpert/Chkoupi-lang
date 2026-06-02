@@ -46,6 +46,8 @@ private:
     void declarePrintf();
     void declareScanf();
     void declareMalloc();
+    void declareStrcmp();
+    void declareMemcpy();
     std::string inferType(const Expr& expr);
     const ReturnStmt* findReturnStmt(const std::vector<StmtPtr>& stmts);
 

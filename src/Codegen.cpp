@@ -27,6 +27,8 @@ Codegen::Codegen()
     declarePrintf();
     declareScanf();
     declareMalloc();
+    declareStrcmp();
+    declareMemcpy();
 
     // Declare standard library math functions
     llvm::FunctionType* sqrtFt = llvm::FunctionType::get(
@@ -49,7 +51,10 @@ llvm::Type* Codegen::getLLVMType(const std::string& t) {
     if (t == "float")             return llvm::Type::getDoubleTy(ctx);
     if (t == "bool")              return llvm::Type::getInt1Ty(ctx);
     if (t == "char")              return llvm::Type::getInt8Ty(ctx);
-    if (t == "string")            return llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx));
+    if (t == "string")            return llvm::StructType::get(ctx, {
+                                      llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx)),
+                                      llvm::Type::getInt64Ty(ctx)
+                                  });
     if (t == "void")              return llvm::Type::getVoidTy(ctx);
     throw std::runtime_error("Unknown type: " + t);
 }
@@ -305,7 +310,10 @@ void Codegen::genPrint(const PrintStmt& s) {
     std::vector<llvm::Value*> args;
     for (size_t i = 0; i < s.args.size(); ++i) {
         llvm::Value* val = genExpr(*s.args[i]);
-        if (i > 0) { // Do not promote the format string itself
+        std::string argType = inferType(*s.args[i]);
+        if (argType == "string") {
+            val = builder.CreateExtractValue(val, 0, "print.strptr");
+        } else if (i > 0) { // Do not promote the format string itself
             llvm::Type* ty = val->getType();
             if (ty->isIntegerTy(1) || ty->isIntegerTy(8)) {
                 val = builder.CreateZExt(val, llvm::Type::getInt32Ty(ctx));
@@ -519,8 +527,15 @@ llvm::Value* Codegen::genExpr(const Expr& expr) {
         return llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), e->value);
     if (auto* e = dynamic_cast<const FloatLitExpr*>(&expr))
         return llvm::ConstantFP::get(llvm::Type::getDoubleTy(ctx), e->value);
-    if (auto* e = dynamic_cast<const StringLitExpr*>(&expr))
-        return builder.CreateGlobalStringPtr(e->value);
+    if (auto* e = dynamic_cast<const StringLitExpr*>(&expr)) {
+        llvm::Value* strVal = builder.CreateGlobalStringPtr(e->value);
+        llvm::Value* lenVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), e->value.size());
+        llvm::Type* stringStructTy = getLLVMType("string");
+        llvm::Value* emptyStruct = llvm::UndefValue::get(stringStructTy);
+        llvm::Value* structWithPtr = builder.CreateInsertValue(emptyStruct, strVal, 0);
+        llvm::Value* finalStruct = builder.CreateInsertValue(structWithPtr, lenVal, 1);
+        return finalStruct;
+    }
     if (auto* e = dynamic_cast<const BoolLitExpr*>(&expr))
         return llvm::ConstantInt::get(llvm::Type::getInt1Ty(ctx), e->value ? 1 : 0);
     if (auto* e = dynamic_cast<const CharLitExpr*>(&expr))
@@ -548,6 +563,53 @@ llvm::Value* Codegen::genBinary(const BinaryExpr& e) {
 
     llvm::Value* L = genExpr(*e.lhs);
     llvm::Value* R = genExpr(*e.rhs);
+
+    std::string lhsType = inferType(*e.lhs);
+    std::string rhsType = inferType(*e.rhs);
+
+    if (lhsType == "string" && rhsType == "string") {
+        if (e.op == "+") {
+            llvm::Value* lPtr = builder.CreateExtractValue(L, 0);
+            llvm::Value* lLen = builder.CreateExtractValue(L, 1);
+            llvm::Value* rPtr = builder.CreateExtractValue(R, 0);
+            llvm::Value* rLen = builder.CreateExtractValue(R, 1);
+
+            llvm::Value* newLen = builder.CreateAdd(lLen, rLen, "strcat.len");
+            llvm::Value* one64 = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), 1);
+            llvm::Value* mallocSize = builder.CreateAdd(newLen, one64);
+
+            llvm::Function* mallocFn = module->getFunction("malloc");
+            llvm::Value* destPtr = builder.CreateCall(mallocFn, {mallocSize});
+
+            llvm::Function* memcpyFn = module->getFunction("memcpy");
+            builder.CreateCall(memcpyFn, {destPtr, lPtr, lLen});
+
+            llvm::Value* destPtrOffset = builder.CreateGEP(llvm::Type::getInt8Ty(ctx), destPtr, lLen);
+            builder.CreateCall(memcpyFn, {destPtrOffset, rPtr, rLen});
+
+            llvm::Value* destPtrNull = builder.CreateGEP(llvm::Type::getInt8Ty(ctx), destPtr, newLen);
+            builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt8Ty(ctx), 0), destPtrNull);
+
+            llvm::Type* stringStructTy = getLLVMType("string");
+            llvm::Value* emptyStruct = llvm::UndefValue::get(stringStructTy);
+            llvm::Value* structWithPtr = builder.CreateInsertValue(emptyStruct, destPtr, 0);
+            llvm::Value* finalStruct = builder.CreateInsertValue(structWithPtr, newLen, 1);
+            return finalStruct;
+        }
+
+        llvm::Value* lPtr = builder.CreateExtractValue(L, 0);
+        llvm::Value* rPtr = builder.CreateExtractValue(R, 0);
+        llvm::Function* strcmpFn = module->getFunction("strcmp");
+        llvm::Value* cmpResult = builder.CreateCall(strcmpFn, {lPtr, rPtr});
+        llvm::Value* zero32 = llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 0);
+        if (e.op == "==") return builder.CreateICmpEQ(cmpResult, zero32);
+        if (e.op == "!=") return builder.CreateICmpNE(cmpResult, zero32);
+        if (e.op == "<")  return builder.CreateICmpSLT(cmpResult, zero32);
+        if (e.op == ">")  return builder.CreateICmpSGT(cmpResult, zero32);
+        if (e.op == "<=") return builder.CreateICmpSLE(cmpResult, zero32);
+        if (e.op == ">=") return builder.CreateICmpSGE(cmpResult, zero32);
+        throw std::runtime_error("Unsupported binary operator for string: " + e.op);
+    }
 
     // Promote mixed float/int operands to float (except modulo)
     if (e.op != "%") {
@@ -638,6 +700,13 @@ llvm::Value* Codegen::genCall(const CallExpr& e) {
         if (e.args.size() != 1)
             throw std::runtime_error("Built-in function 'tool' expects exactly 1 argument");
         llvm::Value* arr = genExpr(*e.args[0]);
+        std::string targetType = inferType(*e.args[0]);
+        if (targetType == "string") {
+            return builder.CreateExtractValue(arr, 1, "string.len");
+        }
+        if (targetType.rfind("jadwl<", 0) != 0) {
+            throw std::runtime_error("Built-in function 'tool' expects a string (nass) or an array (jadwl), got " + targetType);
+        }
         llvm::Value* offset = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), -1);
         llvm::Value* lenPtr = builder.CreateGEP(llvm::Type::getInt64Ty(ctx), arr, offset);
         return builder.CreateLoad(llvm::Type::getInt64Ty(ctx), lenPtr, "array.len");
@@ -741,4 +810,27 @@ llvm::Value* Codegen::genIndexAssign(const IndexAssignExpr& e) {
     llvm::Value* elemPtr = builder.CreateGEP(elemType, arr, idx);
     builder.CreateStore(val, elemPtr);
     return val;
+}
+
+void Codegen::declareStrcmp() {
+    llvm::FunctionType* ft = llvm::FunctionType::get(
+        llvm::Type::getInt32Ty(ctx),
+        {
+            llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx)),
+            llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx))
+        },
+        false);
+    llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "strcmp", module.get());
+}
+
+void Codegen::declareMemcpy() {
+    llvm::FunctionType* ft = llvm::FunctionType::get(
+        llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx)),
+        {
+            llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx)),
+            llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx)),
+            llvm::Type::getInt64Ty(ctx)
+        },
+        false);
+    llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "memcpy", module.get());
 }

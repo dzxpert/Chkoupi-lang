@@ -4,6 +4,13 @@ on:
   push:
     branches: [main, DEV, dev]
     tags: ['v*']
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.gitattributes'
+  schedule:
+    - cron: '0 2 * * *' # Every night at 2 AM UTC
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,16 +21,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download and Extract LLVM 19
+      - name: Cache LLVM 20
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/llvm-20
+          key: llvm-20.1.8-windows-msvc17-libcmt
+
+      - name: Download and Extract LLVM 20
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
         run: |
-          curl -LO https://github.com/vovkos/llvm-package-windows/releases/download/llvm-19.1.7/llvm-19.1.7-windows-amd64-msvc17-libcmt.7z
-          7z x llvm-19.1.7-windows-amd64-msvc17-libcmt.7z -ollvm-19
+          curl -LO https://github.com/vovkos/llvm-package-windows/releases/download/llvm-20.1.8/llvm-20.1.8-windows-amd64-msvc17-libcmt.7z
+          7z x llvm-20.1.8-windows-amd64-msvc17-libcmt.7z -ollvm-20
 
       - name: Locate LLVM Config
         id: find_llvm
         shell: pwsh
         run: |
-          $configFile = Get-ChildItem -Path "${{ github.workspace }}/llvm-19" -Filter "LLVMConfig.cmake" -Recurse | Select-Object -First 1
+          $configFile = Get-ChildItem -Path "${{ github.workspace }}/llvm-20" -Filter "LLVMConfig.cmake" -Recurse | Select-Object -First 1
           if ($configFile) {
             $llvmDir = $configFile.Directory.FullName.Replace('\', '/')
             Write-Host "Found LLVMConfig.cmake in: $llvmDir"

@@ -90,6 +90,30 @@ bdl (code) {
 }
 ```
 
+### a7bss / kml (break / continue)
+
+Use `a7bss` to immediately exit the nearest enclosing loop, and `kml` to skip the remainder of the current loop iteration and continue with the next iteration (including executing the update expression in `dor` loops).
+
+```dz
+// Using a7bss (break)
+dor (dir i = 0; i < 10; i = i + 1) {
+    idha (i == 5) {
+        a7bss; // exits the loop when i is 5
+    }
+    ektb("i = %lld\n", i);
+}
+
+// Using kml (continue)
+dir j = 0;
+ab9a_dor (j < 5) {
+    j = j + 1;
+    idha (j == 3) {
+        kml; // skips printing 3
+    }
+    ektb("j = %lld\n", j);
+}
+```
+
 ### jarb / ila_ghalt (try / except)
 ```dz
 jarb {
@@ -126,6 +150,22 @@ ektb("x = %lld\n", x);        // format: %lld=int, %lf=float, %s=string
 
 dir n : tabi3i = 0;
 a9ra(n);                       // read input into variable
+```
+
+---
+
+## Built-in Functions
+
+### tool(x)
+
+Returns the length of a string (`nass`) or an array (`jadwl`). The return type is `tabi3i`.
+
+```dz
+dir name = "brahim";
+dir size = tool(name); // size = 6
+
+dir numbers = [1, 2, 3, 4];
+dir count = tool(numbers); // count = 4
 ```
 
 ---

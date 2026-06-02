@@ -26,6 +26,8 @@ chkoupi.exe myfile.dz --emit-obj out.o   # compile to object file
 | `idha_mknch` | else |
 | `ab9a_dor` | while |
 | `dor` | for |
+| `a7bss` | break |
+| `kml` | continue |
 | `dalla` | function |
 | `raja3` | return |
 | `bdl` | switch |

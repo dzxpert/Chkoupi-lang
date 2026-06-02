@@ -33,6 +33,8 @@ void Sema::analyze(const Program& prog) {
     functions["printf"] = {-1, "int"};   // varargs
     functions["scanf"]  = {-1, "int"};
     functions["tool"]   = {1, "int"};
+    functions["sqrt"]   = {1, "float"};
+    functions["pow"]    = {2, "float"};
 
     pushScope(); // global scope
 

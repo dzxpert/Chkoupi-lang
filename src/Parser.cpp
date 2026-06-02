@@ -1,5 +1,12 @@
 #include "Parser.h"
+#include "Lexer.h"
 #include <stdexcept>
+#include <fstream>
+#include <sstream>
+#include <set>
+#include <filesystem>
+
+static std::set<std::filesystem::path> resolvedImports;
 
 Parser::Parser(std::vector<Token> tokens) : tokens(std::move(tokens)) {}
 
@@ -33,7 +40,15 @@ Token Parser::expect(TokenKind kind, const char* msg) {
 Program Parser::parse() {
     Program prog;
     while (!check(TokenKind::Eof)) {
-        prog.stmts.push_back(parseStmt());
+        auto stmt = parseStmt();
+        if (auto* imp = dynamic_cast<ImportStmt*>(stmt.get())) {
+            auto importedStmts = resolveImport(imp->path);
+            for (auto& s : importedStmts) {
+                prog.stmts.push_back(std::move(s));
+            }
+        } else {
+            prog.stmts.push_back(std::move(stmt));
+        }
     }
     return prog;
 }
@@ -547,4 +562,65 @@ ExprPtr Parser::parsePrimary() {
         return e;
     }
     throw std::runtime_error("Unexpected token '" + peek().lexeme + "' at line " + std::to_string(peek().line));
+}
+
+std::vector<StmtPtr> Parser::resolveImport(const std::string& path) {
+    if (path == "math") {
+        static bool mathImported = false;
+        if (mathImported) return {}; // already imported once
+        mathImported = true;
+
+        std::string mathSource = 
+            "dalla jdr(x: 3ouchri) -> 3ouchri {\n"
+            "    raja3 sqrt(x);\n"
+            "}\n"
+            "dalla qwa(x: 3ouchri, y: 3ouchri) -> 3ouchri {\n"
+            "    raja3 pow(x, y);\n"
+            "}\n";
+        
+        Lexer lex(mathSource);
+        Parser p(lex.tokenize());
+        p.currentDir = currentDir;
+        return p.parse().stmts;
+    }
+
+    // Custom filesystem import
+    std::filesystem::path fullPath = std::filesystem::path(currentDir) / path;
+    if (fullPath.extension() != ".dz") {
+        fullPath.replace_extension(".dz");
+    }
+
+    // Try current directory as well if fullPath is not found
+    if (!std::filesystem::exists(fullPath)) {
+        std::filesystem::path localPath = std::filesystem::path(path);
+        if (localPath.extension() != ".dz") {
+            localPath.replace_extension(".dz");
+        }
+        if (std::filesystem::exists(localPath)) {
+            fullPath = localPath;
+        }
+    }
+
+    std::filesystem::path canonPath;
+    try {
+        canonPath = std::filesystem::canonical(fullPath);
+    } catch (...) {
+        throw std::runtime_error("jibli error: Cannot find imported file '" + path + "'");
+    }
+
+    if (resolvedImports.count(canonPath)) {
+        return {}; // already imported, skip to prevent circular/duplicate definitions
+    }
+    resolvedImports.insert(canonPath);
+
+    std::ifstream file(canonPath);
+    if (!file.is_open()) {
+        throw std::runtime_error("jibli error: Cannot open imported file '" + canonPath.string() + "'");
+    }
+
+    std::string source((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    Lexer lexer(source);
+    Parser subParser(lexer.tokenize());
+    subParser.currentDir = canonPath.parent_path().string();
+    return subParser.parse().stmts;
 }

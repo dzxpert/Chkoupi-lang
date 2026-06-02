@@ -27,6 +27,15 @@ Codegen::Codegen()
     declarePrintf();
     declareScanf();
     declareMalloc();
+
+    // Declare standard library math functions
+    llvm::FunctionType* sqrtFt = llvm::FunctionType::get(
+        llvm::Type::getDoubleTy(ctx), {llvm::Type::getDoubleTy(ctx)}, false);
+    llvm::Function::Create(sqrtFt, llvm::Function::ExternalLinkage, "sqrt", module.get());
+
+    llvm::FunctionType* powFt = llvm::FunctionType::get(
+        llvm::Type::getDoubleTy(ctx), {llvm::Type::getDoubleTy(ctx), llvm::Type::getDoubleTy(ctx)}, false);
+    llvm::Function::Create(powFt, llvm::Function::ExternalLinkage, "pow", module.get());
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -142,6 +151,10 @@ void Codegen::declareScanf() {
 
 // ── Top-level ─────────────────────────────────────────────────────────────────
 void Codegen::generate(const Program& prog) {
+    // Register standard library function types
+    functionReturnTypes["sqrt"] = "float";
+    functionReturnTypes["pow"]  = "float";
+
     // First pass: register function return types
     for (auto& s : prog.stmts) {
         if (auto* f = dynamic_cast<const FuncDecl*>(s.get())) {

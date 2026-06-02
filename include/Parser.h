@@ -7,8 +7,10 @@ class Parser {
 public:
     explicit Parser(std::vector<Token> tokens);
     Program parse();
+    std::string currentDir = ".";
 
 private:
+    std::vector<StmtPtr> resolveImport(const std::string& path);
     std::vector<Token> tokens;
     size_t             pos = 0;
 

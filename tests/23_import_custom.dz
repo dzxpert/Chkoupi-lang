@@ -1,0 +1,6 @@
+jibli "tests/my_utils";
+
+greet(" Ibrahim");
+
+dir doubled = doubleVal(21);
+ektb("doubled = %lld\n", doubled);

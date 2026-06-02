@@ -15,6 +15,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <filesystem>
 
 static std::string readFile(const std::string& path) {
     std::ifstream f(path);
@@ -56,6 +57,7 @@ int main(int argc, char** argv) {
 
         // 2. Parse
         Parser parser(std::move(tokens));
+        parser.currentDir = std::filesystem::path(srcPath).parent_path().string();
         auto program = parser.parse();
 
         // 3. Semantic analysis

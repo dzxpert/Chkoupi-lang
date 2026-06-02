@@ -1,0 +1,8 @@
+jibli "math";
+
+dir val = 16.0;
+ektb("sqrt(16.0) = %lf\n", jdr(val));
+
+dir base = 2.0;
+dir exp = 3.0;
+ektb("2.0 ^ 3.0 = %lf\n", qwa(base, exp));

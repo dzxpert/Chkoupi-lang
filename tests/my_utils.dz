@@ -1,0 +1,8 @@
+// Custom utility module for import test
+dalla greet(name: nass) {
+    ektb("salam %s!\n", name);
+}
+
+dalla doubleVal(x: tabi3i) {
+    raja3 x * 2;
+}

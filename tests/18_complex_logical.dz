@@ -1,0 +1,19 @@
+// Test: complex short-circuiting logical operations
+dir zero : tabi3i = 0;
+
+// 1. (true wla (10 / 0 > 0)) w true
+idha ((zero == 0 wla (10 / zero > 5)) w (zero == 0)) {
+    ektb("complex short-circuit 1 ok\n");
+}
+
+// 2. (false w (10 / 0 > 0)) wla true
+idha ((zero != 0 w (10 / zero > 5)) wla (zero == 0)) {
+    ektb("complex short-circuit 2 ok\n");
+}
+
+// 3. false w (false wla (10 / 0 > 0))
+idha ((zero != 0) w (zero == 0 wla (10 / zero > 5))) {
+    ektb("should not print\n");
+} idha_mknch {
+    ektb("complex short-circuit 3 ok\n");
+}

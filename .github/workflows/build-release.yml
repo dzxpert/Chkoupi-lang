@@ -1,0 +1,117 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main, DEV, dev]
+    tags: ['v*']
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.gitattributes'
+  schedule:
+    - cron: '0 2 * * *' # Every night at 2 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache LLVM 20
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/llvm-20
+          key: llvm-20.1.8-windows-msvc17-libcmt
+
+      - name: Download and Extract LLVM 20
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        run: |
+          curl -LO https://github.com/vovkos/llvm-package-windows/releases/download/llvm-20.1.8/llvm-20.1.8-windows-amd64-msvc17-libcmt.7z
+          7z x llvm-20.1.8-windows-amd64-msvc17-libcmt.7z -ollvm-20
+
+      - name: Locate LLVM Config
+        id: find_llvm
+        shell: pwsh
+        run: |
+          $configFile = Get-ChildItem -Path "${{ github.workspace }}/llvm-20" -Filter "LLVMConfig.cmake" -Recurse | Select-Object -First 1
+          if ($configFile) {
+            $llvmDir = $configFile.Directory.FullName.Replace('\', '/')
+            Write-Host "Found LLVMConfig.cmake in: $llvmDir"
+            "llvm_dir=$llvmDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            Write-Error "Could not find LLVMConfig.cmake in the extracted directory!"
+            exit 1
+          }
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DLLVM_DIR="${{ steps.find_llvm.outputs.llvm_dir }}"
+
+      - name: Build Release
+        run: cmake --build build --config Release
+
+      - name: Run tests
+        shell: bash
+        run: bash tests/run_tests.sh build/Release/chkoupi.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chkoupi-windows-x64
+          path: build/Release/chkoupi.exe
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/DEV' || github.ref == 'refs/heads/dev'
+    needs: [build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: chkoupi-windows-x64
+          path: artifacts
+
+      - name: Package binary
+        run: |
+          cd artifacts && zip -j ../chkoupi-windows-x64.zip chkoupi.exe && cd ..
+
+      - name: Determine Release Type
+        id: release_vars
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "name=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "tag=dev-build" >> $GITHUB_OUTPUT
+            echo "name=Development Build" >> $GITHUB_OUTPUT
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update git tag for dev-build
+        if: github.ref == 'refs/heads/DEV' || github.ref == 'refs/heads/dev'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f dev-build ${{ github.sha }}
+          git push -f origin dev-build
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_vars.outputs.tag }}
+          name: ${{ steps.release_vars.outputs.name }}
+          prerelease: ${{ steps.release_vars.outputs.prerelease }}
+          generate_release_notes: true
+          files: |
+            chkoupi-windows-x64.zip

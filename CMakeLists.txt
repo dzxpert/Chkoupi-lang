@@ -10,7 +10,11 @@ if(MSVC)
 endif()
 
 # ── Find LLVM ──────────────────────────────────────────────────
-set(LLVM_DIR "D:/LLVM/lib/cmake/llvm" CACHE PATH "Path to LLVM cmake config")
+if(EXISTS "D:/LLVM20/lib/cmake/llvm")
+    set(LLVM_DIR "D:/LLVM20/lib/cmake/llvm" CACHE PATH "Path to LLVM cmake config")
+else()
+    set(LLVM_DIR "D:/LLVM/lib/cmake/llvm" CACHE PATH "Path to LLVM cmake config")
+endif()
 find_package(LLVM REQUIRED CONFIG)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
@@ -24,6 +28,7 @@ set(SOURCES
     src/main.cpp
     src/Lexer.cpp
     src/Parser.cpp
+    src/Sema.cpp
     src/Codegen.cpp
 )
 

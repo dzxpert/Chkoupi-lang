@@ -1,0 +1,3 @@
+// Error test: reassign to constant
+dima x : tabi3i = 5;
+x = 10;

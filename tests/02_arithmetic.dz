@@ -1,0 +1,17 @@
+// Test: arithmetic operators on integers and floats
+dir a : tabi3i = 10;
+dir b : tabi3i = 3;
+
+ektb("%lld\n", a + b);
+ektb("%lld\n", a - b);
+ektb("%lld\n", a * b);
+ektb("%lld\n", a / b);
+ektb("%lld\n", a % b);
+
+dir x : 3ouchri = 10.0;
+dir y : 3ouchri = 3.0;
+
+ektb("%lf\n", x + y);
+ektb("%lf\n", x - y);
+ektb("%lf\n", x * y);
+ektb("%lf\n", x / y);

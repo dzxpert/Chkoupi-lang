@@ -7,8 +7,10 @@ class Parser {
 public:
     explicit Parser(std::vector<Token> tokens);
     Program parse();
+    std::string currentDir = ".";
 
 private:
+    std::vector<StmtPtr> resolveImport(const std::string& path);
     std::vector<Token> tokens;
     size_t             pos = 0;
 
@@ -30,8 +32,11 @@ private:
     StmtPtr parseTryCatch();               // jarb / ila_ghalt
     StmtPtr parseImport();                 // jibli
     StmtPtr parseReturn();                 // raja3
+    StmtPtr parseBreak();                  // a7bss
+    StmtPtr parseContinue();               // kml
     StmtPtr parseFuncDecl();               // dalla
     std::vector<StmtPtr> parseBlock();
+    std::string          parseType();
 
     // Expressions (Pratt-style precedence)
     ExprPtr parseExpr();

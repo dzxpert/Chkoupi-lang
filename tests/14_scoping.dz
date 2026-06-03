@@ -1,0 +1,23 @@
+// Test: block scoping - inner variables don't leak
+dir x : tabi3i = 1;
+ektb("%lld\n", x);
+
+idha (sa7) {
+    dir x : tabi3i = 99;
+    ektb("%lld\n", x);
+}
+
+// x should still be 1 (inner x didn't leak)
+ektb("%lld\n", x);
+
+// Nested scopes
+dir y : tabi3i = 10;
+idha (sa7) {
+    dir y : tabi3i = 20;
+    idha (sa7) {
+        dir y : tabi3i = 30;
+        ektb("%lld\n", y);
+    }
+    ektb("%lld\n", y);
+}
+ektb("%lld\n", y);

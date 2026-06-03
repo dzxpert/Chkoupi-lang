@@ -3,7 +3,7 @@
 dir x : tabi3i = 10;
 dir y : tabi3i = 20;
 
-ektb("tnak!\n");
+ektb("fnak!\n");
 
 idha (x < y) {
     ektb("x akbr mn y\n");

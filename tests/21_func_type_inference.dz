@@ -1,0 +1,26 @@
+// Test: Function Return Type Inference
+
+dalla getInteger(x: tabi3i) {
+    raja3 x + 10;
+}
+
+dalla getFloat() {
+    raja3 3.14;
+}
+
+dalla doVoid() {
+    ektb("inside void function\n");
+}
+
+dalla conditionalReturn(cond: 5iyar) {
+    idha (cond) {
+        raja3 42;
+    }
+    raja3 7;
+}
+
+ektb("integer = %lld\n", getInteger(5));
+ektb("float = %lf\n", getFloat());
+doVoid();
+ektb("conditional sa7 = %lld\n", conditionalReturn(sa7));
+ektb("conditional ghalt = %lld\n", conditionalReturn(ghalt));

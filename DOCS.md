@@ -90,6 +90,30 @@ bdl (code) {
 }
 ```
 
+### a7bss / kml (break / continue)
+
+Use `a7bss` to immediately exit the nearest enclosing loop, and `kml` to skip the remainder of the current loop iteration and continue with the next iteration (including executing the update expression in `dor` loops).
+
+```dz
+// Using a7bss (break)
+dor (dir i = 0; i < 10; i = i + 1) {
+    idha (i == 5) {
+        a7bss; // exits the loop when i is 5
+    }
+    ektb("i = %lld\n", i);
+}
+
+// Using kml (continue)
+dir j = 0;
+ab9a_dor (j < 5) {
+    j = j + 1;
+    idha (j == 3) {
+        kml; // skips printing 3
+    }
+    ektb("j = %lld\n", j);
+}
+```
+
 ### jarb / ila_ghalt (try / except)
 ```dz
 jarb {
@@ -130,6 +154,22 @@ a9ra(n);                       // read input into variable
 
 ---
 
+## Built-in Functions
+
+### tool(x)
+
+Returns the length of a string (`nass`) or an array (`jadwl`). The return type is `tabi3i`.
+
+```dz
+dir name = "brahim";
+dir size = tool(name); // size = 6
+
+dir numbers = [1, 2, 3, 4];
+dir count = tool(numbers); // count = 4
+```
+
+---
+
 ## Comments
 
 ```dz
@@ -140,10 +180,80 @@ a9ra(n);                       // read input into variable
 
 ---
 
-## Import
+## Arrays (`jadwl`)
+
+Arrays are dynamic, heap-allocated lists tracked in memory with a header specifying their length.
 
 ```dz
-jibli "utils";    // future: link external .dz modules
+dir nums : jadwl<tabi3i> = [10, 20, 30]; // explicit type
+dir implicitNums = [1, 2, 3];            // inferred type
+
+// Read / Write Indexing
+nums[1] = 42;
+ektb("nums[1] = %lld\n", nums[1]);
+
+// Length check via built-in tool()
+ektb("length = %lld\n", tool(nums));
+```
+
+---
+
+## Strings (`nass`)
+
+Strings are fully-featured struct-backed types `{ ptr data, i64 length }` (unlike plain pointers).
+
+```dz
+dir s1 = "salam";
+dir s2 = " algeria";
+
+// Concatenation
+dir greeting = s1 + s2; 
+ektb("%s\n", greeting);
+
+// Length checking
+ektb("len = %lld\n", tool(greeting));
+
+// Comparisons
+idha (s1 == "salam") {
+    ektb("salam equal sa7\n");
+}
+```
+
+---
+
+## Implicit Type Coercion
+
+The compiler automatically promotes integers (`tabi3i`) to floats (`3ouchri`) during mixed binary arithmetic, variable assignments, and type annotations to avoid crashes.
+
+```dz
+dir floatVal : 3ouchri = 10; // 10 (int) implicitly promoted to 10.0 (double)
+dir mixedResult = 5 + 3.14;  // 5 (int) promoted to float before calculation
+```
+
+---
+
+## Function Type Inference
+
+You can omit the explicit return type annotation (`-> returnType`) on functions. The compiler recursively analyzes return (`raja3`) statements inside the function body and automatically infers the correct return type (defaulting to `void` if no return is found).
+
+```dz
+dalla getInteger(x: tabi3i) {
+    raja3 x + 10; // Inferred return type tabi3i
+}
+```
+
+---
+
+## Import (`jibli`) & Standard Library
+
+You can recursively import other custom `.dz` files in the directory or use the bundled `"math"` standard library.
+
+```dz
+jibli "math";            // Exposes jdr (sqrt) and qwa (pow)
+jibli "my_custom_file";  // Resolves and parses custom local modules
+
+dir sqVal = jdr(16.0);    // 4.0
+dir powVal = qwa(2.0, 3.0); // 8.0
 ```
 
 ---
@@ -151,17 +261,20 @@ jibli "utils";    // future: link external .dz modules
 ## Full Example
 
 ```dz
-dalla factorial(n: tabi3i) -> tabi3i {
+jibli "math";
+
+dalla factorial(n: tabi3i) {
     idha (n <= 1) {
         raja3 1;
     }
     raja3 n * factorial(n - 1);
 }
 
-dir n : tabi3i = 0;
-ektb("3tini raqm: ");
-a9ra(n);
+dir n : tabi3i = 5;
 ektb("%lld! = %lld\n", n, factorial(n));
+
+dir hypotenuse = jdr(qwa(3.0, 2.0) + qwa(4.0, 2.0));
+ektb("hypotenuse = %lf\n", hypotenuse);
 ```
 
 ---
@@ -188,5 +301,5 @@ clang out.o -o myprogram
 - Statements end with `;`
 - Blocks use `{ }`
 - Type annotations use `:` → `dir x : tabi3i = 5;`
-- Function return type uses `->` → `dalla f() -> tabi3i { ... }`
+- Function return type uses `->` or is automatically inferred
 - Source files use the `.dz` extension

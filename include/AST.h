@@ -20,6 +20,7 @@ struct IntLitExpr    : Expr { long long  value; };
 struct FloatLitExpr  : Expr { double     value; };
 struct StringLitExpr : Expr { std::string value; };
 struct BoolLitExpr   : Expr { bool       value; };  // sa7 / ghalt
+struct CharLitExpr   : Expr { char       value; };  // 'a'
 
 struct VarExpr : Expr { std::string name; };
 
@@ -41,6 +42,21 @@ struct CallExpr : Expr {
 struct AssignExpr : Expr {
     std::string name;
     ExprPtr     value;
+};
+
+struct ArrayLitExpr : Expr {
+    std::vector<ExprPtr> elements;
+};
+
+struct IndexExpr : Expr {
+    ExprPtr target;
+    ExprPtr index;
+};
+
+struct IndexAssignExpr : Expr {
+    ExprPtr target;
+    ExprPtr index;
+    ExprPtr value;
 };
 
 // ── Statements ───────────────────────────────────────────────────────────────
@@ -111,6 +127,12 @@ struct ImportStmt : Stmt {
 struct ReturnStmt : Stmt {
     ExprPtr value;
 };
+
+// a7bss (break)
+struct BreakStmt : Stmt {};
+
+// kml (continue)
+struct ContinueStmt : Stmt {};
 
 // Bare expression statement
 struct ExprStmt : Stmt {

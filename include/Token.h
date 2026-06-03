@@ -11,6 +11,7 @@ enum class TokenKind {
     Integer,        // 42
     Float,          // 3.14
     String,         // "..."
+    Char,           // 'a'
     Identifier,     // foo
 
     // Keywords — declarations
@@ -22,6 +23,8 @@ enum class TokenKind {
     Idha_mknch,     // idha_mknch     (else)
     Ab9a_dor,       // ab9a_dor       (while)
     Dor,            // dor            (for)
+    A7bss,          // a7bss          (break)
+    Kml,            // kml            (continue)
 
     // Keywords — switch/case
     Bdl,            // bdl            (switch)
@@ -49,6 +52,7 @@ enum class TokenKind {
     TypeFargh,      // fargh          (void)
     Type7arf,       // 7arf           (char)
     TypeNass,       // nass           (string)
+    TypeJadwl,      // jadwl          (array)
 
     // Built-ins
     Ektb,           // ektb(...)      (printf)
@@ -62,6 +66,8 @@ enum class TokenKind {
     // Arithmetic operators
     Plus,           // +
     Minus,          // -
+    PlusPlus,       // ++
+    MinusMinus,     // --
     Star,           // *
     Slash,          // /
     Percent,        // %
@@ -76,12 +82,19 @@ enum class TokenKind {
 
     // Assignment
     Eq,             // =
+    PlusEq,         // +=
+    MinusEq,        // -=
+    StarEq,         // *=
+    SlashEq,        // /=
+    PercentEq,      // %=
 
     // Punctuation
     LParen,         // (
     RParen,         // )
     LBrace,         // {
     RBrace,         // }
+    LBracket,       // [
+    RBracket,       // ]
     Semicolon,      // ;
     Colon,          // :
     Comma,          // ,

@@ -1,0 +1,2 @@
+// Error test: return outside function
+raja3 5;

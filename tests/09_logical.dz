@@ -1,0 +1,29 @@
+// Test: logical operators w (and), wla (or), machi (not)
+dir t : 5iyar = sa7;
+dir f : 5iyar = ghalt;
+
+// Basic logical
+ektb("%d\n", t w t);
+ektb("%d\n", t w f);
+ektb("%d\n", f w t);
+ektb("%d\n", f w f);
+
+ektb("%d\n", t wla t);
+ektb("%d\n", t wla f);
+ektb("%d\n", f wla t);
+ektb("%d\n", f wla f);
+
+ektb("%d\n", machi t);
+ektb("%d\n", machi f);
+
+// Short-circuit: division by zero should NOT happen
+dir x : tabi3i = 0;
+idha (x == 0 wla (10 / x > 2)) {
+    ektb("short-circuit wla ok\n");
+}
+
+idha (x != 0 w (10 / x > 2)) {
+    ektb("should not print\n");
+} idha_mknch {
+    ektb("short-circuit w ok\n");
+}

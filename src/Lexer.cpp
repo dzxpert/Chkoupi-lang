@@ -12,6 +12,8 @@ static const std::unordered_map<std::string, TokenKind> KEYWORDS = {
     {"idha_mknch",  TokenKind::Idha_mknch},
     {"ab9a_dor",    TokenKind::Ab9a_dor},
     {"dor",         TokenKind::Dor},
+    {"a7bss",       TokenKind::A7bss},
+    {"kml",         TokenKind::Kml},
     // Switch / case
     {"bdl",         TokenKind::Bdl},
     {"khyr",        TokenKind::Khyr},
@@ -33,6 +35,7 @@ static const std::unordered_map<std::string, TokenKind> KEYWORDS = {
     {"fargh",       TokenKind::TypeFargh},
     {"7arf",        TokenKind::Type7arf},
     {"nass",        TokenKind::TypeNass},
+    {"jadwl",       TokenKind::TypeJadwl},
     // Built-ins
     {"ektb",        TokenKind::Ektb},
     {"a9ra",        TokenKind::A9ra},
@@ -103,6 +106,29 @@ Token Lexer::readString() {
     return makeToken(TokenKind::String, val);
 }
 
+Token Lexer::readChar() {
+    advance(); // consume opening '
+    char val;
+    if (peek() == '\\') {
+        advance();
+        char esc = advance();
+        switch (esc) {
+            case 'n':  val = '\n'; break;
+            case 't':  val = '\t'; break;
+            case '\'': val = '\''; break;
+            case '\\': val = '\\'; break;
+            case '0':  val = '\0'; break;
+            default:   val = esc;  break;
+        }
+    } else {
+        val = advance();
+    }
+    if (pos >= src.size() || peek() != '\'')
+        throw std::runtime_error("Unterminated char literal");
+    advance(); // consume closing '
+    return makeToken(TokenKind::Char, std::string(1, val));
+}
+
 Token Lexer::readNumber() {
     std::string num;
     bool isFloat = false;
@@ -143,7 +169,8 @@ std::vector<Token> Lexer::tokenize() {
 
         char c = peek();
 
-        if (c == '"') { tokens.push_back(readString()); continue; }
+        if (c == '"')  { tokens.push_back(readString()); continue; }
+        if (c == '\'') { tokens.push_back(readChar());   continue; }
         // Keywords starting with digits: 3ouchri, 5iyar, 7arf
         // If a digit is immediately followed by a letter → it's a keyword, not a number
         if (std::isdigit(c) && std::isalpha(peek(1))) {
@@ -156,20 +183,36 @@ std::vector<Token> Lexer::tokenize() {
         // Operators and punctuation
         advance();
         switch (c) {
-            case '+': tokens.push_back(makeToken(TokenKind::Plus,      "+")); break;
+            case '+':
+                if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::PlusEq,    "+=")); }
+                else if (peek() == '+') { advance(); tokens.push_back(makeToken(TokenKind::PlusPlus, "++")); }
+                else               tokens.push_back(makeToken(TokenKind::Plus, "+"));
+                break;
             case '-':
-                if (peek() == '>') { advance(); tokens.push_back(makeToken(TokenKind::Arrow, "->")); }
+                if (peek() == '>') { advance(); tokens.push_back(makeToken(TokenKind::Arrow,      "->")); }
+                else if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::MinusEq,    "-=")); }
+                else if (peek() == '-') { advance(); tokens.push_back(makeToken(TokenKind::MinusMinus, "--")); }
                 else               tokens.push_back(makeToken(TokenKind::Minus, "-"));
                 break;
-            case '*': tokens.push_back(makeToken(TokenKind::Star,      "*")); break;
-            case '/': tokens.push_back(makeToken(TokenKind::Slash,     "/")); break;
-            case '%': tokens.push_back(makeToken(TokenKind::Percent,   "%")); break;
+            case '*':
+                if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::StarEq,    "*=")); }
+                else               tokens.push_back(makeToken(TokenKind::Star, "*"));
+                break;
+            case '/':
+                if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::SlashEq,   "/=")); }
+                else               tokens.push_back(makeToken(TokenKind::Slash, "/"));
+                break;
+            case '%':
+                if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::PercentEq, "%=")); }
+                else               tokens.push_back(makeToken(TokenKind::Percent, "%"));
+                break;
             case '=':
                 if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::EqEq,   "==")); }
                 else               tokens.push_back(makeToken(TokenKind::Eq, "="));
                 break;
             case '!':
                 if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::BangEq, "!=")); }
+                else               tokens.push_back(makeToken(TokenKind::Unknown, "!"));
                 break;
             case '<':
                 if (peek() == '=') { advance(); tokens.push_back(makeToken(TokenKind::LtEq,   "<=")); }
@@ -183,6 +226,8 @@ std::vector<Token> Lexer::tokenize() {
             case ')': tokens.push_back(makeToken(TokenKind::RParen,    ")")); break;
             case '{': tokens.push_back(makeToken(TokenKind::LBrace,    "{")); break;
             case '}': tokens.push_back(makeToken(TokenKind::RBrace,    "}")); break;
+            case '[': tokens.push_back(makeToken(TokenKind::LBracket,  "[")); break;
+            case ']': tokens.push_back(makeToken(TokenKind::RBracket,  "]")); break;
             case ';': tokens.push_back(makeToken(TokenKind::Semicolon, ";")); break;
             case ':': tokens.push_back(makeToken(TokenKind::Colon,     ":")); break;
             case ',': tokens.push_back(makeToken(TokenKind::Comma,     ",")); break;

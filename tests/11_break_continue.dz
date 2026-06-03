@@ -1,0 +1,43 @@
+// Test: a7bss (break) and kml (continue)
+
+// break in while
+dir i : tabi3i = 0;
+ab9a_dor (i < 10) {
+    idha (i == 3) {
+        a7bss;
+    }
+    ektb("%lld\n", i);
+    i++;
+}
+
+ektb("---\n");
+
+// continue in while
+dir j : tabi3i = 0;
+ab9a_dor (j < 5) {
+    j++;
+    idha (j == 3) {
+        kml;
+    }
+    ektb("%lld\n", j);
+}
+
+ektb("---\n");
+
+// break in for
+dor (dir k = 0; k < 10; k++) {
+    idha (k == 4) {
+        a7bss;
+    }
+    ektb("%lld\n", k);
+}
+
+ektb("---\n");
+
+// continue in for
+dor (dir m = 0; m < 5; m++) {
+    idha (m == 2) {
+        kml;
+    }
+    ektb("%lld\n", m);
+}

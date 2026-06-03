@@ -1,0 +1,3 @@
+// Error test: calling tool() on an integer
+dir x = 123;
+ektb("%lld\n", tool(x));

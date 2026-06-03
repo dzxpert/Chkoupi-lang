@@ -1,0 +1,27 @@
+// Test: if, else, else-if chains
+dir x : tabi3i = 10;
+
+idha (x > 5) {
+    ektb("kbir\n");
+} idha_mknch {
+    ektb("sghir\n");
+}
+
+idha (x == 0) {
+    ektb("zero\n");
+} idha_mknch {
+    ektb("machi zero\n");
+}
+
+// else-if chain
+dir grade : tabi3i = 85;
+
+idha (grade >= 90) {
+    ektb("A\n");
+} idha_mknch idha (grade >= 80) {
+    ektb("B\n");
+} idha_mknch idha (grade >= 70) {
+    ektb("C\n");
+} idha_mknch {
+    ektb("F\n");
+}

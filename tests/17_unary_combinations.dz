@@ -1,0 +1,10 @@
+// Test: complex unary combinations
+dir x : tabi3i = 10;
+ektb("%lld\n", - - -x);
+ektb("%lld\n", -(-x));
+ektb("%lld\n", -x + -5);
+
+dir b : 5iyar = sa7;
+ektb("%d\n", machi machi b);
+ektb("%d\n", machi machi machi b);
+ektb("%d\n", machi (machi b));

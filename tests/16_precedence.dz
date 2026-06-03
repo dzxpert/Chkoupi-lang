@@ -1,0 +1,10 @@
+// Test: operator precedence
+// * before +
+ektb("%lld\n", 2 + 3 * 4);
+// parentheses override
+ektb("%lld\n", (2 + 3) * 4);
+// nested
+ektb("%lld\n", 100 - 10 * 5 + 3);
+// comparison vs arithmetic
+ektb("%d\n", 2 + 3 > 4);
+ektb("%d\n", 2 + 3 > 6);

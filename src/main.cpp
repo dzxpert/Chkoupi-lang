@@ -1,5 +1,6 @@
 #include "Lexer.h"
 #include "Parser.h"
+#include "Sema.h"
 #include "Codegen.h"
 
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
@@ -14,6 +15,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <filesystem>
 
 static std::string readFile(const std::string& path) {
     std::ifstream f(path);
@@ -55,13 +57,18 @@ int main(int argc, char** argv) {
 
         // 2. Parse
         Parser parser(std::move(tokens));
+        parser.currentDir = std::filesystem::path(srcPath).parent_path().string();
         auto program = parser.parse();
 
-        // 3. Codegen
+        // 3. Semantic analysis
+        Sema sema;
+        sema.analyze(program);
+
+        // 4. Codegen
         Codegen codegen;
         codegen.generate(program);
 
-        // 4. Emit modes
+        // 5. Emit modes
         if (emitIR) {
             codegen.dumpIR();
             return 0;
@@ -73,7 +80,7 @@ int main(int argc, char** argv) {
             return 0;
         }
 
-        // 5. Default mode: JIT execute
+        // 6. Default mode: JIT execute
         codegen.runJIT();
 
     } catch (const std::exception& e) {

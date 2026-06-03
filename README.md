@@ -1,115 +1,111 @@
 # Chkoupi-lang 🇩🇿
 
+The **first** programming language with keywords in Algerian Darija, powered by LLVM.
 
+> [!NOTE]
+> **شكوبي | Chkoupi (Algerian Darija)**
+>
+> هي كلمة تعني العلقات البحرية التي تطفو على سطح البحر، يستعمل هذه الكلمة الصيادون حيث أنهم عندم يسأل أحد صياد أخر عن ما أصاد يجيب " صيدت الشكوبي" أي بمعنى لا شئ، و الكثير من الجزائريين يضنون أنها كلمة بذيئة و لكن ليست كذلك.
+>
+> _جاي كي الشكوبي، أي لا يصلح لأي شئ_
+>
+> ---
+>
+> **Translation:**
+> *Chkoupi refers to marine algae/seaweed floating on the sea. Fishermen use it: when asked what they caught, they reply "Seyedt el chkoupi" ("I caught seaweed"), meaning "nothing at all". Although many Algerians mistake it for a vulgar term, it is not.*
+>
+> — Cited from [Mo3jam](https://en.mo3jam.com/term/%D8%B4%D9%D8%A9%D9%88%D8%A8%D9%8A)
 
-A vibe coded Algerian Darija programming language — compiles to native code via LLVM.
+---
 
-📖 [Full Language Reference → DOCS.md](DOCS.md)
+## Try it Online
+
+Write and run Chkoupi-lang code directly in your browser:
+
+👉 **[train.brauh.tech](https://train.brauh.tech)**
+
+---
+
+## What is this?
+
+Chkoupi-lang is a fully functional compiled language where keywords, types, and libraries are written in Algerian Darija. 
+
+Instead of being an interpreted scripting language, it compiles directly to optimized machine code:
+- **LLVM Backend**: Translates your source code into optimized native executables.
+- **Type Coercion**: Automatically handles type conversions, such as promoting integers to floats.
+- **First-Class Types**: Fat strings and heap-allocated dynamic arrays.
+- **Modules**: Exposes a basic module resolution system (`jibli`).
+
+---
+
+## Reference Documentation
+
+For detailed language specifications, syntax rules, and type behaviors, check the reference guide:
+
+👉 **[DOCS.md](DOCS.md)**
+
+---
+
+## Simple Example
+
+![Chkoupi Example](docs/example_snippet.svg)
+
+<details>
+<summary>📋 Click to view copyable raw code</summary>
+
+```dz
+// Import mathematical library
+jibli "math";
+
+// Define a factorial function (return type is inferred)
+dalla factorial(n: tabi3i) {
+    idha (n <= 1) {
+        raja3 1;
+    }
+    raja3 n * factorial(n - 1);
+}
+
+// String concatenation & length check
+dir greeting = "Salam" + " Algeria!";
+ektb("%s (length = %lld)\n", greeting, tool(greeting));
+
+// Array usage
+dir nums = [10, 20, 30];
+nums[1] = 42;
+ektb("nums[1] = %lld\n", nums[1]);
+
+// Call the function
+dir result = factorial(5);
+ektb("5! = %lld\n", result);
+```
+
+</details>
+
+---
 
 ## Quick Start
 
+You can download a pre-built binary from the **[Releases](../../releases)** page, or compile it yourself.
+
+### Building from Source
+Prerequisites: A C++17 compiler, CMake 3.20+, and LLVM 17+.
+
 ```powershell
-chkoupi.exe myfile.dz          # run directly (JIT)
-chkoupi.exe myfile.dz --emit-ir          # print LLVM IR
-chkoupi.exe myfile.dz --emit-obj out.o   # compile to object file
-```
-
-## Keywords
-
-| Darija | Meaning |
-|---|---|
-| `dir x = ...` | declare variable |
-| `dima x = ...` | declare constant |
-| `ektb(...)` | print |
-| `a9ra(x)` | read input |
-| `idha` | if |
-| `idha_mknch` | else |
-| `ab9a_dor` | while |
-| `dor` | for |
-| `a7bss` | break |
-| `kml` | continue |
-| `dalla` | function |
-| `raja3` | return |
-| `bdl` | switch |
-| `khyr` | case |
-| `jarb` | try |
-| `ila_ghalt` | except |
-| `jibli` | import |
-| `sa7` | true |
-| `ghalt` | false |
-
-## Types
-
-| Darija | Meaning |
-|---|---|
-| `tabi3i` | int |
-| `3ouchri` | float |
-| `5iyar` | bool |
-| `7arf` | char |
-| `nass` | string |
-| `fargh` | void |
-| `jadwl<T>` | array |
-
-## Operators
-
-| Darija | Meaning |
-|---|---|
-| `w` | and |
-| `wla` | or |
-| `machi` | not |
-
-## Key Features Added
-
-- **Arrays (`jadwl<T>`)**: Dynamic arrays on the heap. Index with `arr[i]` and check length using `tool(arr)`.
-- **Strings (`nass`)**: Full string support with concatenation (`+`), comparisons (`==`, `!=`, `<`, `>`), and length via `tool(str)`.
-- **Implicit Type Coercion**: Mixed `tabi3i` / `3ouchri` promotion and conversion in binary operations and assignments.
-- **Function Return Inference**: Function `-> returnType` signature annotation is optional.
-- **Module System (`jibli`)**: Recursive file imports and standard math library (`jibli "math";` exposing `jdr` & `qwa`).
-
-## Example
-
-```dz
-// 1. Strings & Concatenation
-dir s1 = "salam";
-dir s2 = " algeria";
-ektb("greet = %s (len = %lld)\n", s1 + s2, tool(s1 + s2));
-
-// 2. Arrays
-dir nums : jadwl<tabi3i> = [10, 20, 30];
-nums[1] = 42;
-ektb("length = %lld, nums[1] = %lld\n", tool(nums), nums[1]);
-
-// 3. Implicit Coercion & Type Inference
-dir floatVal : 3ouchri = 5;  // int promoted to double
-dir result = floatVal + 2.5; // mixed arithmetic
-ektb("result = %lf\n", result);
-
-// 4. Function Return Inference
-dalla compute(a: tabi3i) {
-    raja3 a * 10;
-}
-ektb("compute = %lld\n", compute(5));
-```
-
-## Building
-
-### Prerequisites
-- CMake 3.20+
-- LLVM 17+ (dev headers)
-- C++17 compiler (MSVC / Clang / GCC)
-
-### Windows
-```powershell
+# Generate build configuration and compile (Windows Visual Studio 2022 example)
 cmake -B build -G "Visual Studio 17 2022" -A x64 -DLLVM_DIR="D:/LLVM/lib/cmake/llvm"
 cmake --build build --config Release
 ```
 
-### Linux / macOS
-```bash
-sudo apt install llvm-dev   # or brew install llvm
-cmake -B build
-cmake --build build
-```
+### Running the Compiler
+```powershell
+# Run immediately via LLVM JIT
+chkoupi.exe myfile.dz
 
----
-**made as copium**
+# Print raw LLVM IR
+chkoupi.exe myfile.dz --emit-ir
+
+# Compile to a native object file, then link
+chkoupi.exe myfile.dz --emit-obj out.o
+clang out.o -o myprogram
+./myprogram
+```

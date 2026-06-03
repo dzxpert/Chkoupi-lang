@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="650" height="576" viewBox="0 0 650 576">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <rect width="100%" height="100%" fill="#0d1117" rx="8" />
+  <rect x="20" y="20" width="610" height="536" fill="#0F141C" rx="10" filter="url(#shadow)"/>
+  <circle cx="45" cy="40" r="6" fill="#FF5F56"/>
+  <circle cx="65" cy="40" r="6" fill="#FFBD2E"/>
+  <circle cx="85" cy="40" r="6" fill="#27C93F"/>
+  <g font-family="Consolas, Fira Code, Monaco, 'Courier New', Courier, monospace" font-size="14">
+    <text x="45" y="65" fill="#3C4048" text-anchor="end" font-size="12" select="none">1</text>
+    <text x="70" y="65" xml:space="preserve"><tspan fill="#72716F">// Import mathematical library</tspan></text>
+    <text x="45" y="87" fill="#3C4048" text-anchor="end" font-size="12" select="none">2</text>
+    <text x="70" y="87" xml:space="preserve"><tspan fill="#E6C387">jibli</tspan> <tspan fill="#98BB6C">&quot;math&quot;</tspan><tspan fill="#DCD7BA">;</tspan></text>
+    <text x="45" y="109" fill="#3C4048" text-anchor="end" font-size="12" select="none">3</text>
+    <text x="70" y="109" xml:space="preserve"></text>
+    <text x="45" y="131" fill="#3C4048" text-anchor="end" font-size="12" select="none">4</text>
+    <text x="70" y="131" xml:space="preserve"><tspan fill="#72716F">// Define a factorial function (return type is inferred)</tspan></text>
+    <text x="45" y="153" fill="#3C4048" text-anchor="end" font-size="12" select="none">5</text>
+    <text x="70" y="153" xml:space="preserve"><tspan fill="#E6C387">dalla</tspan> <tspan fill="#DCD7BA">factorial</tspan><tspan fill="#DCD7BA">(</tspan><tspan fill="#DCD7BA">n</tspan><tspan fill="#9CABCA">:</tspan> <tspan fill="#7CA1F5">tabi3i</tspan><tspan fill="#DCD7BA">)</tspan> <tspan fill="#DCD7BA">{</tspan></text>
+    <text x="45" y="175" fill="#3C4048" text-anchor="end" font-size="12" select="none">6</text>
+    <text x="70" y="175" xml:space="preserve">    <tspan fill="#E6C387">idha</tspan> <tspan fill="#DCD7BA">(</tspan><tspan fill="#DCD7BA">n</tspan> <tspan fill="#9CABCA">&lt;=</tspan> <tspan fill="#D27E4E">1</tspan><tspan fill="#DCD7BA">)</tspan> <tspan fill="#DCD7BA">{</tspan></text>
+    <text x="45" y="197" fill="#3C4048" text-anchor="end" font-size="12" select="none">7</text>
+    <text x="70" y="197" xml:space="preserve">        <tspan fill="#E6C387">raja3</tspan> <tspan fill="#D27E4E">1</tspan><tspan fill="#DCD7BA">;</tspan></text>
+    <text x="45" y="219" fill="#3C4048" text-anchor="end" font-size="12" select="none">8</text>
+    <text x="70" y="219" xml:space="preserve">    <tspan fill="#DCD7BA">}</tspan></text>
+    <text x="45" y="241" fill="#3C4048" text-anchor="end" font-size="12" select="none">9</text>
+    <text x="70" y="241" xml:space="preserve">    <tspan fill="#E6C387">raja3</tspan> <tspan fill="#DCD7BA">n</tspan> <tspan fill="#9CABCA">*</tspan> <tspan fill="#DCD7BA">factorial</tspan><tspan fill="#DCD7BA">(</tspan><tspan fill="#DCD7BA">n</tspan> <tspan fill="#9CABCA">-</tspan> <tspan fill="#D27E4E">1</tspan><tspan fill="#DCD7BA">)</tspan><tspan fill="#DCD7BA">;</tspan></text>
+    <text x="45" y="263" fill="#3C4048" text-anchor="end" font-size="12" select="none">10</text>
+    <text x="70" y="263" xml:space="preserve"><tspan fill="#DCD7BA">}</tspan></text>
+    <text x="45" y="285" fill="#3C4048" text-anchor="end" font-size="12" select="none">11</text>
+    <text x="70" y="285" xml:space="preserve"></text>
+    <text x="45" y="307" fill="#3C4048" text-anchor="end" font-size="12" select="none">12</text>
+    <text x="70" y="307" xml:space="preserve"><tspan fill="#72716F">// String concatenation &amp; length check</tspan></text>
+    <text x="45" y="329" fill="#3C4048" text-anchor="end" font-size="12" select="none">13</text>
+    <text x="70" y="329" xml:space="preserve"><tspan fill="#E6C387">dir</tspan> <tspan fill="#DCD7BA">greeting</tspan> <tspan fill="#9CABCA">=</tspan> <tspan fill="#98BB6C">&quot;Salam&quot;</tspan> <tspan fill="#9CABCA">+</tspan> <tspan fill="#98BB6C">&quot; Algeria!&quot;</tspan><tspan fill="#DCD7BA">;</tspan></text>
+    <text x="45" y="351" fill="#3C4048" text-anchor="end" font-size="12" select="none">14</text>
+    <text x="70" y="351" xml:space="preserve"><tspan fill="#7E9CD8">ektb</tspan><tspan fill="#DCD7BA">(</tspan><tspan fill="#98BB6C">&quot;%s (length = %lld)\n&quot;</tspan><tspan fill="#DCD7BA">,</tspan> <tspan fill="#DCD7BA">greeting</tspan><tspan fill="#DCD7BA">,</tspan> <tspan fill="#7E9CD8">tool</tspan><tspan fill="#DCD7BA">(</tspan><tspan fill="#DCD7BA">greeting</tspan><tspan fill="#DCD7BA">)</tspan><tspan fill="#DCD7BA">)</tspan><tspan fill="#DCD7BA">;</tspan></text>
+    <text x="45" y="373" fill="#3C4048" text-anchor="end" font-size="12" select="none">15</text>
+    <text x="70" y="373" xml:space="preserve"></text>
+    <text x="45" y="395" fill="#3C4048" text-anchor="end" font-size="12" select="none">16</text>
+    <text x="70" y="395" xml:space="preserve"><tspan fill="#72716F">// Array usage</tspan></text>
+    <text x="45" y="417" fill="#3C4048" text-anchor="end" font-size="12" select="none">17</text>
+    <text x="70" y="417" xml:space="preserve"><tspan fill="#E6C387">dir</tspan> <tspan fill="#DCD7BA">nums</tspan> <tspan fill="#9CABCA">=</tspan> <tspan fill="#DCD7BA">[</tspan><tspan fill="#D27E4E">10</tspan><tspan fill="#DCD7BA">,</tspan> <tspan fill="#D27E4E">20</tspan><tspan fill="#DCD7BA">,</tspan> <tspan fill="#D27E4E">30</tspan><tspan fill="#DCD7BA">]</tspan><tspan fill="#DCD7BA">;</tspan></text>
+    <text x="45" y="439" fill="#3C4048" text-anchor="end" font-size="12" select="none">18</text>
+    <text x="70" y="439" xml:space="preserve"><tspan fill="#DCD7BA">nums</tspan><tspan fill="#DCD7BA">[</tspan><tspan fill="#D27E4E">1</tspan><tspan fill="#DCD7BA">]</tspan> <tspan fill="#9CABCA">=</tspan> <tspan fill="#D27E4E">42</tspan><tspan fill="#DCD7BA">;</tspan></text>
+    <text x="45" y="461" fill="#3C4048" text-anchor="end" font-size="12" select="none">19</text>
+    <text x="70" y="461" xml:space="preserve"><tspan fill="#7E9CD8">ektb</tspan><tspan fill="#DCD7BA">(</tspan><tspan fill="#98BB6C">&quot;nums[1] = %lld\n&quot;</tspan><tspan fill="#DCD7BA">,</tspan> <tspan fill="#DCD7BA">nums</tspan><tspan fill="#DCD7BA">[</tspan><tspan fill="#D27E4E">1</tspan><tspan fill="#DCD7BA">]</tspan><tspan fill="#DCD7BA">)</tspan><tspan fill="#DCD7BA">;</tspan></text>
+    <text x="45" y="483" fill="#3C4048" text-anchor="end" font-size="12" select="none">20</text>
+    <text x="70" y="483" xml:space="preserve"></text>
+    <text x="45" y="505" fill="#3C4048" text-anchor="end" font-size="12" select="none">21</text>
+    <text x="70" y="505" xml:space="preserve"><tspan fill="#72716F">// Call the function</tspan></text>
+    <text x="45" y="527" fill="#3C4048" text-anchor="end" font-size="12" select="none">22</text>
+    <text x="70" y="527" xml:space="preserve"><tspan fill="#E6C387">dir</tspan> <tspan fill="#DCD7BA">result</tspan> <tspan fill="#9CABCA">=</tspan> <tspan fill="#DCD7BA">factorial</tspan><tspan fill="#DCD7BA">(</tspan><tspan fill="#D27E4E">5</tspan><tspan fill="#DCD7BA">)</tspan><tspan fill="#DCD7BA">;</tspan></text>
+    <text x="45" y="549" fill="#3C4048" text-anchor="end" font-size="12" select="none">23</text>
+    <text x="70" y="549" xml:space="preserve"><tspan fill="#7E9CD8">ektb</tspan><tspan fill="#DCD7BA">(</tspan><tspan fill="#98BB6C">&quot;5! = %lld\n&quot;</tspan><tspan fill="#DCD7BA">,</tspan> <tspan fill="#DCD7BA">result</tspan><tspan fill="#DCD7BA">)</tspan><tspan fill="#DCD7BA">;</tspan></text>
+  </g>
+</svg>

@@ -8,8 +8,6 @@ on:
       - '**.md'
       - '.gitignore'
       - '.gitattributes'
-  schedule:
-    - cron: '0 2 * * *' # Every night at 2 AM UTC
   workflow_dispatch:
 
 permissions:
@@ -17,7 +15,7 @@ permissions:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
@@ -67,7 +65,7 @@ jobs:
           path: build/Release/chkoupi.exe
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/DEV' || github.ref == 'refs/heads/dev'
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/DEV' || github.ref == 'refs/heads/dev'
     needs: [build-windows]
     runs-on: ubuntu-latest
     steps:
@@ -99,7 +97,7 @@ jobs:
           fi
 
       - name: Update git tag for dev-build
-        if: github.ref == 'refs/heads/DEV' || github.ref == 'refs/heads/dev'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/DEV' || github.ref == 'refs/heads/dev'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"

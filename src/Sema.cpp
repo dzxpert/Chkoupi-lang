@@ -219,6 +219,18 @@ void Sema::checkFree(const FreeStmt& s) {
     if (type != "string" && type.rfind("jadwl<", 0) != 0 && !structs.count(type)) {
         error("Cannot kssr value of non-heap type '" + type + "'");
     }
+    if (structs.count(type)) {
+        std::string destructorName = type + ".kssr";
+        auto it = functions.find(destructorName);
+        if (it != functions.end()) {
+            if (it->second.paramCount != 1) {
+                error("Destructor 'kssr' of struct '" + type + "' must not have any parameters");
+            }
+            if (it->second.returnType != "void" && it->second.returnType != "") {
+                error("Destructor 'kssr' of struct '" + type + "' must not return a value");
+            }
+        }
+    }
 }
 
 // ── Expressions ──────────────────────────────────────────────────────────────

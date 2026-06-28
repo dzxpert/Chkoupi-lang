@@ -631,6 +631,11 @@ void Codegen::genFree(const FreeStmt& s) {
         llvm::Value* rawPtr = builder.CreateGEP(llvm::Type::getInt8Ty(ctx), val, offset);
         builder.CreateCall(freeFn, {rawPtr});
     } else {
+        std::string destructorName = type + ".kssr";
+        llvm::Function* destructorFn = module->getFunction(destructorName);
+        if (destructorFn) {
+            builder.CreateCall(destructorFn, {val});
+        }
         llvm::Value* rawPtr = builder.CreateBitCast(val, llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx)));
         builder.CreateCall(freeFn, {rawPtr});
     }

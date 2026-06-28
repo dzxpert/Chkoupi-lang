@@ -242,7 +242,15 @@ StmtPtr Parser::parseContinue() {
 StmtPtr Parser::parseFuncDecl() {
     advance(); // consume dalla
     auto s = std::make_unique<FuncDecl>();
-    s->name = expect(TokenKind::Identifier, "Expected function name").lexeme;
+    std::string name;
+    if (check(TokenKind::Identifier)) {
+        name = advance().lexeme;
+    } else if (check(TokenKind::Kssr)) {
+        name = advance().lexeme;
+    } else {
+        throw std::runtime_error("Expected function name at line " + std::to_string(peek().line));
+    }
+    s->name = name;
     expect(TokenKind::LParen, "Expected '('");
     while (!check(TokenKind::RParen) && !check(TokenKind::Eof)) {
         FuncDecl::Param p;
@@ -529,7 +537,14 @@ ExprPtr Parser::parseCall() {
             idx->index = std::move(indexExpr);
             expr = std::move(idx);
         } else if (match(TokenKind::Dot)) {
-            std::string fieldName = expect(TokenKind::Identifier, "Expected field name after '.'").lexeme;
+            std::string fieldName;
+            if (check(TokenKind::Identifier)) {
+                fieldName = advance().lexeme;
+            } else if (check(TokenKind::Kssr)) {
+                fieldName = advance().lexeme;
+            } else {
+                throw std::runtime_error("Expected field or method name after '.'");
+            }
             if (check(TokenKind::LParen)) {
                 advance(); // consume (
                 auto mc = std::make_unique<MethodCallExpr>();

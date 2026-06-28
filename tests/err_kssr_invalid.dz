@@ -1,0 +1,4 @@
+dalla main() {
+    dir x = 42;
+    kssr x; // x is a tabi3i (primitive), not heap pointer!
+}

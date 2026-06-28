@@ -37,6 +37,12 @@ private:
     };
     std::vector<LoopContext>                 loopStack;
 
+    // Struct type mappings
+    std::map<std::string, llvm::StructType*> structTypes;
+    std::map<std::string, std::vector<std::string>> structFields;
+    std::map<std::string, std::map<std::string, std::string>> structFieldTypes;
+    std::map<std::string, std::map<std::string, const Expr*>> structDefaultVals;
+
     // Helpers
     llvm::Type*      getLLVMType(const std::string& typeName);
     llvm::Function*  currentFunction = nullptr;
@@ -46,6 +52,7 @@ private:
     void declarePrintf();
     void declareScanf();
     void declareMalloc();
+    void declareFree();
     void declareStrcmp();
     void declareMemcpy();
     std::string inferType(const Expr& expr);
@@ -65,6 +72,9 @@ private:
     void     genBreak();
     void     genContinue();
     void     genFunc(const FuncDecl& s);
+    void     genStructDecl(const StructDeclStmt& s);
+    void     genFree(const FreeStmt& s);
+    void     genMethod(const std::string& structName, const FuncDecl& fd);
     void     genBlock(const std::vector<StmtPtr>& block);
 
     llvm::Value* genExpr(const Expr& expr);
@@ -77,4 +87,8 @@ private:
     llvm::Value* genArrayLit(const ArrayLitExpr& e);
     llvm::Value* genIndex(const IndexExpr& e);
     llvm::Value* genIndexAssign(const IndexAssignExpr& e);
+    llvm::Value* genStructLit(const StructLitExpr& e);
+    llvm::Value* genMemberExpr(const MemberExpr& e);
+    llvm::Value* genMemberAssign(const MemberAssignExpr& e);
+    llvm::Value* genMethodCall(const MethodCallExpr& e);
 };

@@ -41,6 +41,11 @@ enum class TokenKind {
     // Keywords — import
     Jibli,          // jibli          (import)
 
+    // Keywords — structs & memory
+    Qaleb,          // 9aleb          (struct definition)
+    Had,            // had            (this/self instance pointer)
+    Kssr,           // kssr           (free memory)
+
     // Boolean literals
     Sa7,            // sa7            (true)
     Ghalt,          // ghalt          (false)

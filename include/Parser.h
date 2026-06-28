@@ -35,6 +35,8 @@ private:
     StmtPtr parseBreak();                  // a7bss
     StmtPtr parseContinue();               // kml
     StmtPtr parseFuncDecl();               // dalla
+    StmtPtr parseStructDecl();             // 9aleb
+    StmtPtr parseFree();                   // kssr
     std::vector<StmtPtr> parseBlock();
     std::string          parseType();
 

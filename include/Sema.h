@@ -1,6 +1,7 @@
 #pragma once
 #include "AST.h"
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -20,11 +21,19 @@ private:
         std::string returnType;
     };
 
+    struct StructInfo {
+        std::map<std::string, std::string> fields;
+        std::set<std::string> fieldsWithDefaults;
+    };
+
     // Scope stack: each scope is a map of variable names
     std::vector<std::map<std::string, VarInfo>> scopes;
 
     // Known functions
     std::map<std::string, FuncInfo> functions;
+
+    // Known structs
+    std::map<std::string, StructInfo> structs;
 
     int loopDepth    = 0;
     int functionDepth = 0;
@@ -45,7 +54,10 @@ private:
     void checkTryCatch(const TryCatchStmt& s);
     void checkReturn(const ReturnStmt& s);
     void checkFunc(const FuncDecl& s);
+    void checkStructDecl(const StructDeclStmt& s);
+    void checkFree(const FreeStmt& s);
     void checkBlock(const std::vector<StmtPtr>& block);
 
     void checkExpr(const Expr& expr);
+    std::string inferType(const Expr& expr);
 };

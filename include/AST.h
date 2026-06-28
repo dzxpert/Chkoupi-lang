@@ -59,6 +59,28 @@ struct IndexAssignExpr : Expr {
     ExprPtr value;
 };
 
+struct StructLitExpr : Expr {
+    std::string structName;
+    std::vector<std::pair<std::string, ExprPtr>> initializers;
+};
+
+struct MemberExpr : Expr {
+    ExprPtr target;
+    std::string fieldName;
+};
+
+struct MemberAssignExpr : Expr {
+    ExprPtr target;
+    std::string fieldName;
+    ExprPtr value;
+};
+
+struct MethodCallExpr : Expr {
+    ExprPtr target;
+    std::string methodName;
+    std::vector<ExprPtr> args;
+};
+
 // ── Statements ───────────────────────────────────────────────────────────────
 
 struct Stmt { virtual ~Stmt() = default; };
@@ -146,6 +168,23 @@ struct FuncDecl : Stmt {
     std::vector<Param>   params;
     std::string          returnType;
     std::vector<StmtPtr> body;
+};
+
+// 9aleb Name { ... }
+struct StructDeclStmt : Stmt {
+    struct Field {
+        std::string name;
+        std::string type;
+        ExprPtr defaultVal;
+    };
+    std::string name;
+    std::vector<Field> fields;
+    std::vector<StmtPtr> methods; // list of FuncDecl nodes
+};
+
+// kssr <expr>
+struct FreeStmt : Stmt {
+    ExprPtr value;
 };
 
 // Top-level program

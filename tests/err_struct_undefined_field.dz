@@ -1,0 +1,8 @@
+9aleb Nuqta {
+    dir x : tabi3i;
+}
+
+dalla main() {
+    dir p = Nuqta { x: 5 };
+    dir z = p.y;
+}

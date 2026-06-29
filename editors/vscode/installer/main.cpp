@@ -6,176 +6,15 @@
 #include <chrono>
 #include <cctype>
 #include <algorithm>
+#include <stdexcept>
+#include <cstdint>
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
-// Embedded file contents
-const std::string package_json = R"JSON({
-    "name": "chkoupi-lang",
-    "displayName": "Chkoupi-lang",
-    "description": "Syntax highlighting and language support for Chkoupi-lang",
-    "version": "1.0.0",
-    "publisher": "dzxpert",
-    "engines": {
-        "vscode": "^1.60.0"
-    },
-    "categories": [
-        "Programming Languages"
-    ],
-    "contributes": {
-        "languages": [{
-            "id": "chkoupi",
-            "aliases": ["Chkoupi", "chkoupi"],
-            "extensions": [".dz"],
-            "configuration": "./language-configuration.json"
-        }],
-        "grammars": [{
-            "language": "chkoupi",
-            "scopeName": "source.dz",
-            "path": "./syntaxes/chkoupi.tmLanguage.json"
-        }]
-    }
-})JSON";
-
-const std::string language_configuration_json = R"JSON({
-    "comments": {
-        "lineComment": "//",
-        "blockComment": ["/*", "*/"]
-    },
-    "brackets": [
-        ["{", "}"],
-        ["[", "]"],
-        ["(", ")"]
-    ],
-    "autoClosingPairs": [
-        {"open": "{", "close": "}"},
-        {"open": "[", "close": "]"},
-        {"open": "(", "close": ")"},
-        {"open": "\"", "close": "\""},
-        {"open": "'", "close": "'"}
-    ],
-    "surroundingPairs": [
-        ["{", "}"],
-        ["[", "]"],
-        ["(", ")"],
-        ["\"", "\""],
-        ["'", "'"]
-    ]
-})JSON";
-
-const std::string chkoupi_tmLanguage_json = R"JSON({
-    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-    "name": "Chkoupi",
-    "patterns": [
-        {
-            "include": "#comments"
-        },
-        {
-            "include": "#strings"
-        },
-        {
-            "include": "#numbers"
-        },
-        {
-            "include": "#keywords"
-        },
-        {
-            "include": "#types"
-        }
-    ],
-    "repository": {
-        "comments": {
-            "patterns": [
-                {
-                    "name": "comment.line.double-slash.dz",
-                    "match": "//.*$"
-                },
-                {
-                    "name": "comment.block.dz",
-                    "begin": "/\\*",
-                    "end": "\\*/"
-                }
-            ]
-        },
-        "strings": {
-            "patterns": [
-                {
-                    "name": "string.quoted.double.dz",
-                    "begin": "\"",
-                    "end": "\"",
-                    "patterns": [
-                        {
-                            "name": "constant.character.escape.dz",
-                            "match": "\\\\."
-                        }
-                    ]
-                },
-                {
-                    "name": "string.quoted.single.dz",
-                    "begin": "'",
-                    "end": "'",
-                    "patterns": [
-                        {
-                            "name": "constant.character.escape.dz",
-                            "match": "\\\\."
-                        }
-                    ]
-                }
-            ]
-        },
-        "numbers": {
-            "patterns": [
-                {
-                    "name": "constant.numeric.float.dz",
-                    "match": "\\b\\d+\\.\\d+\\b"
-                },
-                {
-                    "name": "constant.numeric.integer.dz",
-                    "match": "\\b\\d+\\b"
-                }
-            ]
-        },
-        "keywords": {
-            "patterns": [
-                {
-                    "name": "keyword.control.dz",
-                    "match": "\\b(idha|idha_mknch|ab9a_dor|dor|a7bss|kml|bdl|khyr|jarb|ila_ghalt|raja3|jibli)\\b"
-                },
-                {
-                    "name": "keyword.other.dz",
-                    "match": "\\b(dir|dima|dalla|9aleb|had|kssr)\\b"
-                },
-                {
-                    "name": "support.function.builtin.dz",
-                    "match": "\\b(ektb|a9ra|tool)\\b"
-                },
-                {
-                    "name": "keyword.operator.logical.dz",
-                    "match": "\\b(w|wla|machi)\\b"
-                },
-                {
-                    "name": "constant.language.boolean.dz",
-                    "match": "\\b(sa7|ghalt)\\b"
-                }
-            ]
-        },
-        "types": {
-            "patterns": [
-                {
-                    "name": "storage.type.dz",
-                    "match": "\\b(tabi3i|3ouchri|5iyar|fargh|7arf|nass|jadwl)\\b"
-                },
-                {
-                    "name": "entity.name.type.dz",
-                    "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
-                }
-            ]
-        }
-    },
-    "scopeName": "source.dz"
-})JSON";
+// Embedded file contents configured via CMake
+#include "manifests.h"
 
 int main() {
     std::cout << "=========================================\n";
@@ -203,11 +42,19 @@ int main() {
         std::filesystem::create_directories(extensions_dir / "syntaxes");
 
         auto write_file = [](const std::filesystem::path& path, const std::string& content) {
-            std::ofstream out(path, std::ios::out | std::ios::trunc);
+            std::filesystem::path temp_path = path.parent_path() / (path.filename().string() + ".tmp");
+            std::ofstream out(temp_path, std::ios::out | std::ios::trunc);
             if (!out) {
-                throw std::runtime_error("Could not write file: " + path.string());
+                throw std::runtime_error("Could not write to temporary file: " + temp_path.string());
             }
             out << content;
+            if (!out) {
+                out.close();
+                std::filesystem::remove(temp_path);
+                throw std::runtime_error("Failed writing content to: " + temp_path.string());
+            }
+            out.close();
+            std::filesystem::rename(temp_path, path);
         };
 
         write_file(extensions_dir / "package.json", package_json);
@@ -241,21 +88,73 @@ int main() {
         };
         trim(json_content);
 
-        if (json_content.find("dzxpert.chkoupi-lang") == std::string::npos) {
-            std::cout << "Registering extension in extensions.json...\n";
+        // Find existing registration and replace or register
+        bool already_registered = false;
+        bool needs_update = false;
+        size_t target_start = std::string::npos;
+        size_t target_end = std::string::npos;
 
-            uint64_t timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()
-            ).count();
+        int brace_depth = 0;
+        bool in_string = false;
+        size_t current_object_start = std::string::npos;
 
-            std::string path_uri = extensions_dir.generic_string();
-            if (path_uri.size() >= 2 && path_uri[1] == ':') {
-                path_uri[0] = std::tolower(path_uri[0]);
-                path_uri = "/" + path_uri;
+        for (size_t i = 0; i < json_content.size(); ++i) {
+            char c = json_content[i];
+            if (c == '"' && (i == 0 || json_content[i - 1] != '\\')) {
+                in_string = !in_string;
             }
+            if (!in_string) {
+                if (c == '{') {
+                    if (brace_depth == 0) {
+                        current_object_start = i;
+                    }
+                    brace_depth++;
+                } else if (c == '}') {
+                    brace_depth--;
+                    if (brace_depth == 0 && current_object_start != std::string::npos) {
+                        std::string obj_str = json_content.substr(current_object_start, i - current_object_start + 1);
+                        if (obj_str.find("dzxpert.chkoupi-lang") != std::string::npos) {
+                            target_start = current_object_start;
+                            target_end = i;
+                            break;
+                        }
+                        current_object_start = std::string::npos;
+                    }
+                }
+            }
+        }
 
-            std::string new_entry = "{\"identifier\":{\"id\":\"dzxpert.chkoupi-lang\"},\"version\":\"1.0.0\",\"location\":{\"$mid\":1,\"path\":\"" + path_uri + "\",\"scheme\":\"file\"},\"relativeLocation\":\"dzxpert.chkoupi-lang-1.0.0\",\"metadata\":{\"installedTimestamp\":" + std::to_string(timestamp) + ",\"pinned\":false,\"source\":\"user\",\"id\":\"dzxpert.chkoupi-lang\"}}";
+        uint64_t timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count();
 
+        std::string path_uri = extensions_dir.generic_string();
+        if (path_uri.size() >= 2 && path_uri[1] == ':') {
+            path_uri[0] = std::tolower(path_uri[0]);
+            path_uri = "/" + path_uri;
+        }
+
+        std::string new_entry = "{\"identifier\":{\"id\":\"dzxpert.chkoupi-lang\"},\"version\":\"1.0.0\",\"location\":{\"$mid\":1,\"path\":\"" + path_uri + "\",\"scheme\":\"file\"},\"relativeLocation\":\"dzxpert.chkoupi-lang-1.0.0\",\"metadata\":{\"installedTimestamp\":" + std::to_string(timestamp) + ",\"pinned\":false,\"source\":\"user\",\"id\":\"dzxpert.chkoupi-lang\"}}";
+
+        if (target_start != std::string::npos) {
+            std::string obj_str = json_content.substr(target_start, target_end - target_start + 1);
+            if (obj_str.find("\"version\":\"1.0.0\"") != std::string::npos && 
+                obj_str.find("\"relativeLocation\":\"dzxpert.chkoupi-lang-1.0.0\"") != std::string::npos) {
+                already_registered = true;
+            } else {
+                needs_update = true;
+            }
+        }
+
+        if (already_registered) {
+            std::cout << "Extension is already registered in extensions.json.\n";
+        } else if (needs_update) {
+            std::cout << "Updating existing extension registration in extensions.json...\n";
+            json_content.replace(target_start, target_end - target_start + 1, new_entry);
+            write_file(registry_path, json_content);
+            std::cout << "SUCCESS: Extension registration updated in extensions.json!\n";
+        } else {
+            std::cout << "Registering extension in extensions.json...\n";
             if (json_content.empty() || json_content == "[]" || json_content == "[]\n") {
                 json_content = "[\n  " + new_entry + "\n]";
             } else {
@@ -266,11 +165,8 @@ int main() {
                     json_content = "[\n  " + new_entry + "\n]";
                 }
             }
-
             write_file(registry_path, json_content);
             std::cout << "SUCCESS: Extension registered in extensions.json!\n";
-        } else {
-            std::cout << "Extension is already registered in extensions.json.\n";
         }
 
         std::cout << "SUCCESS: Chkoupi-lang extension installed successfully!\n";

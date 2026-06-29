@@ -35,6 +35,17 @@ static void printUsage(const char* prog) {
               << "  --emit-obj: compile to object file\n";
 }
 
+static std::string serializeTokens(const std::vector<Token>& tokens, size_t start, size_t end) {
+    std::string res = "";
+    for (size_t i = start; i <= end; ++i) {
+        res += tokens[i].lexeme;
+        if (i < end) {
+            res += " ";
+        }
+    }
+    return res + "\n";
+}
+
 static void runREPL() {
     std::cout << "Chkoupi-lang Interactive REPL\n";
     std::cout << "Type 'khroj;' to exit.\n";
@@ -43,6 +54,9 @@ static void runREPL() {
     std::string accumulatedCode = "";
     std::string multiLineBuffer = "";
     int openBraces = 0;
+    bool inString = false;
+    bool inChar = false;
+    bool inBlockComment = false;
 
     while (true) {
         if (openBraces > 0) {
@@ -67,9 +81,42 @@ static void runREPL() {
 
         multiLineBuffer += line + "\n";
 
-        for (char c : line) {
-            if (c == '{') openBraces++;
-            else if (c == '}') openBraces--;
+        for (size_t i = 0; i < line.size(); ++i) {
+            char c = line[i];
+            if (inBlockComment) {
+                if (c == '*' && i + 1 < line.size() && line[i+1] == '/') {
+                    inBlockComment = false;
+                    i++; // consume '/'
+                }
+            } else if (inString) {
+                if (c == '\\' && i + 1 < line.size()) {
+                    i++; // skip escaped char
+                } else if (c == '"') {
+                    inString = false;
+                }
+            } else if (inChar) {
+                if (c == '\\' && i + 1 < line.size()) {
+                    i++; // skip escaped char
+                } else if (c == '\'') {
+                    inChar = false;
+                }
+            } else {
+                if (c == '/' && i + 1 < line.size() && line[i+1] == '/') {
+                    // Line comment: ignores the rest of the line
+                    break;
+                } else if (c == '/' && i + 1 < line.size() && line[i+1] == '*') {
+                    inBlockComment = true;
+                    i++; // consume '*'
+                } else if (c == '"') {
+                    inString = true;
+                } else if (c == '\'') {
+                    inChar = true;
+                } else if (c == '{') {
+                    openBraces++;
+                } else if (c == '}') {
+                    openBraces--;
+                }
+            }
         }
         if (openBraces < 0) openBraces = 0;
 
@@ -95,12 +142,50 @@ static void runREPL() {
 
             codegen.runJIT(false);
 
-            accumulatedCode = candidateCode;
+            // Extract only the new definitions (dalla / 9aleb / dir / dima) from multiLineBuffer
+            Lexer inputLexer(multiLineBuffer);
+            auto inputTokens = inputLexer.tokenize();
+            std::string extractedDefs = "";
+            for (size_t i = 0; i < inputTokens.size(); ++i) {
+                if (inputTokens[i].kind == TokenKind::Dalla || inputTokens[i].kind == TokenKind::Qaleb) {
+                    size_t start = i;
+                    int braceDepth = 0;
+                    size_t end = i;
+                    for (size_t j = i; j < inputTokens.size(); ++j) {
+                        if (inputTokens[j].kind == TokenKind::LBrace) {
+                            braceDepth++;
+                        } else if (inputTokens[j].kind == TokenKind::RBrace) {
+                            braceDepth--;
+                            if (braceDepth == 0) {
+                                end = j;
+                                i = j; // skip forward in outer loop
+                                break;
+                            }
+                        }
+                    }
+                    extractedDefs += serializeTokens(inputTokens, start, end);
+                } else if (inputTokens[i].kind == TokenKind::Dir || inputTokens[i].kind == TokenKind::Dima) {
+                    size_t start = i;
+                    size_t end = i;
+                    for (size_t j = i; j < inputTokens.size(); ++j) {
+                        if (inputTokens[j].kind == TokenKind::Semicolon) {
+                            end = j;
+                            i = j; // skip forward in outer loop
+                            break;
+                        }
+                    }
+                    extractedDefs += serializeTokens(inputTokens, start, end);
+                }
+            }
+            accumulatedCode += extractedDefs;
             multiLineBuffer = "";
         } catch (const std::exception& e) {
             std::cerr << "[chkoupi khta9] " << e.what() << "\n";
             multiLineBuffer = "";
             openBraces = 0;
+            inString = false;
+            inChar = false;
+            inBlockComment = false;
         }
     }
 }

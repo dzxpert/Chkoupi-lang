@@ -85,7 +85,7 @@ std::string Codegen::inferType(const Expr& expr) {
     if (dynamic_cast<const FloatLitExpr*>(&expr))  return "float";
     if (dynamic_cast<const BoolLitExpr*>(&expr))   return "bool";
     if (dynamic_cast<const CharLitExpr*>(&expr))   return "char";
-    if (dynamic_cast<const StringLitExpr*>(&expr)) return "string";
+    if (dynamic_cast<const StringLitExpr*>(&expr)) return "string_literal";
     if (auto* e = dynamic_cast<const VarExpr*>(&expr)) {
         auto it = variableTypes.find(e->name);
         if (it != variableTypes.end()) return it->second;
@@ -108,7 +108,14 @@ std::string Codegen::inferType(const Expr& expr) {
         return "jadwl<" + inferType(*e->elements[0]) + ">";
     }
     if (auto* e = dynamic_cast<const BinaryExpr*>(&expr)) {
-        return inferType(*e->lhs);
+        std::string lhsType = inferType(*e->lhs);
+        std::string rhsType = inferType(*e->rhs);
+        if ((lhsType == "string" || lhsType == "string_literal") &&
+            (rhsType == "string" || rhsType == "string_literal") &&
+            e->op == "+") {
+            return "string";
+        }
+        return lhsType;
     }
     if (auto* e = dynamic_cast<const UnaryExpr*>(&expr)) {
         return inferType(*e->operand);
@@ -232,7 +239,16 @@ void Codegen::generate(const Program& prog) {
             std::string retType = f->returnType;
             if (retType.empty()) {
                 const ReturnStmt* r = findReturnStmt(f->body);
-                retType = (r && r->value) ? inferType(*r->value) : "void";
+                if (r && r->value) {
+                    auto savedVariableTypes = variableTypes;
+                    for (const auto& p : f->params) {
+                        variableTypes[p.name] = p.type;
+                    }
+                    retType = inferType(*r->value);
+                    variableTypes = savedVariableTypes;
+                } else {
+                    retType = "void";
+                }
             }
             functionReturnTypes[f->name] = retType;
         } else if (auto* sd = dynamic_cast<const StructDeclStmt*>(s.get())) {
@@ -241,10 +257,45 @@ void Codegen::generate(const Program& prog) {
                     std::string retType = f->returnType;
                     if (retType.empty()) {
                         const ReturnStmt* r = findReturnStmt(f->body);
-                        retType = (r && r->value) ? inferType(*r->value) : "void";
+                        if (r && r->value) {
+                            auto savedVariableTypes = variableTypes;
+                            variableTypes["had"] = sd->name;
+                            for (const auto& p : f->params) {
+                                variableTypes[p.name] = p.type;
+                            }
+                            retType = inferType(*r->value);
+                            variableTypes = savedVariableTypes;
+                        } else {
+                            retType = "void";
+                        }
                     }
                     std::string mangledName = sd->name + "." + f->name;
                     functionReturnTypes[mangledName] = retType;
+                }
+            }
+        }
+    }
+
+    // Pre-pass 3.5: Declare all functions and methods (so forward-references work in method bodies and user functions)
+    for (auto& s : prog.stmts) {
+        if (auto* f = dynamic_cast<const FuncDecl*>(s.get())) {
+            std::vector<llvm::Type*> paramTypes;
+            for (auto& p : f->params) paramTypes.push_back(getLLVMType(p.type));
+            std::string retTypeStr = functionReturnTypes[f->name];
+            auto* retTy = getLLVMType(retTypeStr);
+            auto* ft    = llvm::FunctionType::get(retTy, paramTypes, false);
+            llvm::Function::Create(ft, llvm::Function::ExternalLinkage, f->name, module.get());
+        } else if (auto* sd = dynamic_cast<const StructDeclStmt*>(s.get())) {
+            for (auto& mStmt : sd->methods) {
+                if (auto* fd = dynamic_cast<const FuncDecl*>(mStmt.get())) {
+                    std::vector<llvm::Type*> paramTypes;
+                    paramTypes.push_back(getLLVMType(sd->name));
+                    for (auto& p : fd->params) paramTypes.push_back(getLLVMType(p.type));
+                    std::string mangledName = sd->name + "." + fd->name;
+                    std::string retTypeStr = functionReturnTypes[mangledName];
+                    auto* retTy = getLLVMType(retTypeStr);
+                    auto* ft    = llvm::FunctionType::get(retTy, paramTypes, false);
+                    llvm::Function::Create(ft, llvm::Function::ExternalLinkage, mangledName, module.get());
                 }
             }
         }
@@ -404,7 +455,7 @@ void Codegen::genPrint(const PrintStmt& s) {
     for (size_t i = 0; i < s.args.size(); ++i) {
         llvm::Value* val = genExpr(*s.args[i]);
         std::string argType = inferType(*s.args[i]);
-        if (argType == "string") {
+        if (argType == "string" || argType == "string_literal") {
             val = builder.CreateExtractValue(val, 0, "print.strptr");
         } else if (i > 0) { // Do not promote the format string itself
             llvm::Type* ty = val->getType();
@@ -581,8 +632,11 @@ void Codegen::genFunc(const FuncDecl& s) {
     for (auto& p : s.params) paramTypes.push_back(getLLVMType(p.type));
     std::string retTypeStr = functionReturnTypes[s.name];
     auto* retTy = getLLVMType(retTypeStr);
-    auto* ft    = llvm::FunctionType::get(retTy, paramTypes, false);
-    auto* fn    = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, s.name, module.get());
+    llvm::Function* fn = module->getFunction(s.name);
+    if (!fn) {
+        auto* ft = llvm::FunctionType::get(retTy, paramTypes, false);
+        fn = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, s.name, module.get());
+    }
 
     auto* bb = llvm::BasicBlock::Create(ctx, "entry", fn);
     builder.SetInsertPoint(bb);
@@ -656,8 +710,11 @@ void Codegen::genMethod(const std::string& structName, const FuncDecl& fd) {
     std::string mangledName = structName + "." + fd.name;
     std::string retTypeStr = functionReturnTypes[mangledName];
     auto* retTy = getLLVMType(retTypeStr);
-    auto* ft    = llvm::FunctionType::get(retTy, paramTypes, false);
-    auto* fn    = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, mangledName, module.get());
+    llvm::Function* fn = module->getFunction(mangledName);
+    if (!fn) {
+        auto* ft = llvm::FunctionType::get(retTy, paramTypes, false);
+        fn = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, mangledName, module.get());
+    }
 
     auto* bb = llvm::BasicBlock::Create(ctx, "entry", fn);
     builder.SetInsertPoint(bb);
@@ -746,7 +803,8 @@ llvm::Value* Codegen::genBinary(const BinaryExpr& e) {
     std::string lhsType = inferType(*e.lhs);
     std::string rhsType = inferType(*e.rhs);
 
-    if (lhsType == "string" && rhsType == "string") {
+    if ((lhsType == "string" || lhsType == "string_literal") &&
+        (rhsType == "string" || rhsType == "string_literal")) {
         if (e.op == "+") {
             llvm::Value* lPtr = builder.CreateExtractValue(L, 0);
             llvm::Value* lLen = builder.CreateExtractValue(L, 1);
@@ -880,7 +938,7 @@ llvm::Value* Codegen::genCall(const CallExpr& e) {
             throw std::runtime_error("Built-in function 'tool' expects exactly 1 argument");
         llvm::Value* arr = genExpr(*e.args[0]);
         std::string targetType = inferType(*e.args[0]);
-        if (targetType == "string") {
+        if (targetType == "string" || targetType == "string_literal") {
             return builder.CreateExtractValue(arr, 1, "string.len");
         }
         if (targetType.rfind("jadwl<", 0) != 0) {

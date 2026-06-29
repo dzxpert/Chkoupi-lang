@@ -32,6 +32,7 @@ dalla main() -> tabi3i {
     // Modify nested field
     t1.markaz.x = 100;
     t1.introduce();
+    p1.custom_print();
 
     // Memory cleanup
     kssr p2;

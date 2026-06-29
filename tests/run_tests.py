@@ -10,6 +10,9 @@ def run_tests():
     binary_path = None
     if len(sys.argv) >= 2:
         binary_path = sys.argv[1]
+        if not os.path.exists(binary_path):
+            print(f"ERROR: Provided binary path does not exist: {binary_path}")
+            sys.exit(1)
     else:
         candidates = [
             os.path.join(script_dir, "..", "build", "Release", "chkoupi.exe"),
@@ -146,14 +149,15 @@ def run_tests():
             
             stdout_ok = t["expected_stdout"] in actual_stdout
             stderr_ok = "expected_err_contains" not in t or t["expected_err_contains"] in actual_stderr or t["expected_err_contains"] in actual_stdout
+            returncode_ok = (res.returncode == 0)
 
-            if stdout_ok and stderr_ok:
+            if stdout_ok and stderr_ok and returncode_ok:
                 print(f"PASS  {test_name}")
                 passed += 1
             else:
-                print(f"FAIL  {test_name}")
+                print(f"FAIL  {test_name}  (exit code {res.returncode})")
                 failed += 1
-                err_msg = f"{test_name} failed:\n"
+                err_msg = f"{test_name} failed (exit code {res.returncode}):\n"
                 if not stdout_ok:
                     err_msg += f"  expected stdout to contain: {t['expected_stdout']}\n  actual stdout:\n{actual_stdout}\n"
                 if not stderr_ok:

@@ -102,7 +102,7 @@ StmtPtr Parser::parseStmt() {
     if (check(TokenKind::Raja3))      return parseReturn();
     if (check(TokenKind::A7bss))      return parseBreak();
     if (check(TokenKind::Kml))        return parseContinue();
-    if (check(TokenKind::Dalla))      return parseFuncDecl();
+    if (check(TokenKind::Dalla))      return parseFuncDecl(false);
     if (check(TokenKind::Qaleb))      return parseStructDecl();
     if (check(TokenKind::Kssr))       return parseFree();
     if (check(TokenKind::Bdl))        return parseSwitch();
@@ -239,13 +239,13 @@ StmtPtr Parser::parseContinue() {
 }
 
 // dalla name(p: tabi3i, ...) -> tabi3i { ... }
-StmtPtr Parser::parseFuncDecl() {
+StmtPtr Parser::parseFuncDecl(bool isMethod) {
     advance(); // consume dalla
     auto s = std::make_unique<FuncDecl>();
     std::string name;
     if (check(TokenKind::Identifier)) {
         name = advance().lexeme;
-    } else if (check(TokenKind::Kssr)) {
+    } else if (isMethod && check(TokenKind::Kssr)) {
         name = advance().lexeme;
     } else {
         throw std::runtime_error("Expected function name at line " + std::to_string(peek().line));
@@ -317,7 +317,7 @@ StmtPtr Parser::parseStructDecl() {
     
     while (!check(TokenKind::RBrace) && !check(TokenKind::Eof)) {
         if (check(TokenKind::Dalla)) {
-            s->methods.push_back(parseFuncDecl());
+            s->methods.push_back(parseFuncDecl(true));
         } else {
             expect(TokenKind::Dir, "Struct members must be fields ('dir') or methods ('dalla')");
             std::string fieldName = expect(TokenKind::Identifier, "Expected field name").lexeme;
@@ -538,14 +538,24 @@ ExprPtr Parser::parseCall() {
             expr = std::move(idx);
         } else if (match(TokenKind::Dot)) {
             std::string fieldName;
+            bool isMethodCall = false;
             if (check(TokenKind::Identifier)) {
                 fieldName = advance().lexeme;
+                if (check(TokenKind::LParen)) {
+                    isMethodCall = true;
+                }
             } else if (check(TokenKind::Kssr)) {
-                fieldName = advance().lexeme;
+                if (peek(1).kind == TokenKind::LParen) {
+                    fieldName = advance().lexeme;
+                    isMethodCall = true;
+                } else {
+                    throw std::runtime_error("Expected field or method name after '.'");
+                }
             } else {
                 throw std::runtime_error("Expected field or method name after '.'");
             }
-            if (check(TokenKind::LParen)) {
+
+            if (isMethodCall) {
                 advance(); // consume (
                 auto mc = std::make_unique<MethodCallExpr>();
                 mc->target = std::move(expr);

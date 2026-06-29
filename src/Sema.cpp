@@ -5,6 +5,13 @@ static void error(const std::string& msg) {
     throw std::runtime_error("[sema] " + msg);
 }
 
+static bool isCompatibleType(const std::string& expected, const std::string& actual) {
+    if (expected == actual) return true;
+    if (expected == "float" && actual == "int") return true;
+    if (expected == "string" && actual == "string_literal") return true;
+    return false;
+}
+
 void Sema::pushScope() {
     scopes.emplace_back();
 }
@@ -66,6 +73,9 @@ void Sema::analyze(const Program& prog) {
             for (auto& mStmt : sd->methods) {
                 if (auto* fd = dynamic_cast<const FuncDecl*>(mStmt.get())) {
                     std::string mangledName = sd->name + "." + fd->name;
+                    if (functions.count(mangledName)) {
+                        error("Method '" + fd->name + "' already declared in struct '" + sd->name + "'");
+                    }
                     functions[mangledName] = {(int)fd->params.size() + 1, fd->returnType};
                 }
             }
@@ -184,7 +194,7 @@ void Sema::checkFunc(const FuncDecl& s) {
 void Sema::checkStructDecl(const StructDeclStmt& s) {
     for (const auto& field : s.fields) {
         std::string t = field.type;
-        if (t != "int" && t != "float" && t != "bool" && t != "char" && t != "string" && t != "void" && t.rfind("jadwl<", 0) != 0) {
+        if (t != "int" && t != "float" && t != "bool" && t != "char" && t != "string" && t.rfind("jadwl<", 0) != 0) {
             if (!structs.count(t)) {
                 error("Unknown type '" + t + "' for field '" + field.name + "' in struct '" + s.name + "'");
             }
@@ -192,7 +202,7 @@ void Sema::checkStructDecl(const StructDeclStmt& s) {
         if (field.defaultVal) {
             checkExpr(*field.defaultVal);
             std::string initType = inferType(*field.defaultVal);
-            if (initType != t && !(t == "float" && initType == "int")) {
+            if (!isCompatibleType(t, initType)) {
                 error("Default value type '" + initType + "' does not match field type '" + t + "' in struct '" + s.name + "'");
             }
         }
@@ -216,6 +226,9 @@ void Sema::checkStructDecl(const StructDeclStmt& s) {
 void Sema::checkFree(const FreeStmt& s) {
     checkExpr(*s.value);
     std::string type = inferType(*s.value);
+    if (type == "string_literal") {
+        error("Cannot kssr a non-owned string (literal or non-owned string variable)");
+    }
     if (type != "string" && type.rfind("jadwl<", 0) != 0 && !structs.count(type)) {
         error("Cannot kssr value of non-heap type '" + type + "'");
     }
@@ -302,11 +315,14 @@ void Sema::checkExpr(const Expr& expr) {
                 error("Struct '" + e->structName + "' has no field named '" + init.first + "'");
             }
             checkExpr(*init.second);
+            if (initializedFields.count(init.first)) {
+                error("Duplicate initializer for field '" + init.first + "' in struct '" + e->structName + "'");
+            }
             initializedFields.insert(init.first);
             
             std::string initType = inferType(*init.second);
             std::string fieldType = info.fields.at(init.first);
-            if (initType != fieldType && !(fieldType == "float" && initType == "int")) {
+            if (!isCompatibleType(fieldType, initType)) {
                 error("Initializer type '" + initType + "' does not match field type '" + fieldType + "' for field '" + init.first + "' in struct '" + e->structName + "'");
             }
         }
@@ -375,7 +391,7 @@ std::string Sema::inferType(const Expr& expr) {
     if (dynamic_cast<const FloatLitExpr*>(&expr))  return "float";
     if (dynamic_cast<const BoolLitExpr*>(&expr))   return "bool";
     if (dynamic_cast<const CharLitExpr*>(&expr))   return "char";
-    if (dynamic_cast<const StringLitExpr*>(&expr)) return "string";
+    if (dynamic_cast<const StringLitExpr*>(&expr)) return "string_literal";
     if (auto* e = dynamic_cast<const VarExpr*>(&expr)) {
         auto* info = lookupVar(e->name);
         if (info) return info->type;
@@ -398,7 +414,14 @@ std::string Sema::inferType(const Expr& expr) {
         return "jadwl<" + inferType(*e->elements[0]) + ">";
     }
     if (auto* e = dynamic_cast<const BinaryExpr*>(&expr)) {
-        return inferType(*e->lhs);
+        std::string lhsType = inferType(*e->lhs);
+        std::string rhsType = inferType(*e->rhs);
+        if ((lhsType == "string" || lhsType == "string_literal") &&
+            (rhsType == "string" || rhsType == "string_literal") &&
+            e->op == "+") {
+            return "string";
+        }
+        return lhsType;
     }
     if (auto* e = dynamic_cast<const UnaryExpr*>(&expr)) {
         return inferType(*e->operand);

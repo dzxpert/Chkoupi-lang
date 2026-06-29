@@ -34,7 +34,7 @@ private:
     StmtPtr parseReturn();                 // raja3
     StmtPtr parseBreak();                  // a7bss
     StmtPtr parseContinue();               // kml
-    StmtPtr parseFuncDecl();               // dalla
+    StmtPtr parseFuncDecl(bool isMethod = false);               // dalla
     StmtPtr parseStructDecl();             // 9aleb
     StmtPtr parseFree();                   // kssr
     std::vector<StmtPtr> parseBlock();

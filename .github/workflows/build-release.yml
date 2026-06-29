@@ -62,7 +62,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: chkoupi-windows-x64
-          path: build/Release/chkoupi.exe
+          path: |
+            build/Release/chkoupi.exe
+            build/Release/chkoupi-vscode-installer.exe
 
   release:
     if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/DEV' || github.ref == 'refs/heads/dev'
@@ -81,7 +83,10 @@ jobs:
 
       - name: Package binary
         run: |
-          cd artifacts && zip -j ../chkoupi-windows-x64.zip chkoupi.exe && cd ..
+          cd artifacts
+          zip -j ../chkoupi-windows-x64.zip chkoupi.exe chkoupi-vscode-installer.exe
+          cp chkoupi-vscode-installer.exe ../chkoupi-vscode-installer.exe
+          cd ..
 
       - name: Determine Release Type
         id: release_vars
@@ -113,3 +118,4 @@ jobs:
           generate_release_notes: true
           files: |
             chkoupi-windows-x64.zip
+            chkoupi-vscode-installer.exe

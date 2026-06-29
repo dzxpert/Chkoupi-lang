@@ -46,6 +46,19 @@ For detailed language specifications, syntax rules, and type behaviors, check th
 
 ---
 
+## VS Code Editor Support
+
+Chkoupi-lang has syntax highlighting and language configuration support for Visual Studio Code.
+
+### One-Click Installation
+1. Download `chkoupi-vscode-installer.exe` from the **[Releases](https://github.com/dzxpert/Chkoupi-lang/releases)** page.
+2. Double-click/run the executable and press **Enter** to close it.
+3. Restart or reload VS Code, and your `.dz` source files will highlight automatically!
+
+*(The extension source files can also be viewed in the [editors/vscode/](editors/vscode) directory).*
+
+---
+
 ## Simple Example
 
 ![Chkoupi Example](docs/example_snippet.svg)
@@ -85,7 +98,7 @@ ektb("5! = %lld\n", result);
 
 ## Quick Start
 
-You can download a pre-built binary from the **[Releases](../../releases)** page, or compile it yourself.
+You can download a pre-built binary from the **[Releases](https://github.com/dzxpert/Chkoupi-lang/releases)** page, or compile it yourself.
 
 ### Building from Source
 Prerequisites: A C++17 compiler, CMake 3.20+, and LLVM 17+.

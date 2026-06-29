@@ -1,0 +1,43 @@
+9aleb Nuqta {
+    dir x : tabi3i = 0;
+    dir y : tabi3i = 0;
+
+    dalla custom_print() -> fargh {
+        ektb("Nuqta: (%lld, %lld)\n", had.x, had.y);
+    }
+}
+
+9aleb Talib {
+    dir ism : nass;
+    dir 3mr : tabi3i = 18;
+    dir markaz : Nuqta;
+
+    dalla introduce() -> fargh {
+        ektb("Salam, ismi %s w 3mri %lld\n", had.ism, had.3mr);
+        had.markaz.custom_print();
+    }
+}
+
+dalla main() -> tabi3i {
+    dir p1 = Nuqta { x: 5, y: 10 };
+    p1.custom_print();
+
+    // Default values test
+    dir p2 = Nuqta { x: 42 };
+    p2.custom_print();
+
+    dir t1 = Talib { ism: "Brahim", markaz: p1 };
+    t1.introduce();
+
+    // Modify nested field
+    t1.markaz.x = 100;
+    t1.introduce();
+    p1.custom_print();
+
+    // Memory cleanup
+    kssr p2;
+    kssr t1.markaz;
+    kssr t1;
+
+    raja3 0;
+}

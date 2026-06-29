@@ -244,6 +244,42 @@ dalla getInteger(x: tabi3i) {
 
 ---
 
+## Structs (`9aleb`) & Methods (`had`)
+
+Structs are user-defined types defined using the `9aleb` keyword. They are heap-allocated by reference. Fields can have optional default values. Methods are defined inside the struct and can access the current instance's fields using the implicit instance pointer `had`.
+
+```dz
+9aleb Nuqta {
+    dir x : tabi3i = 0; // default value
+    dir y : tabi3i = 0; // default value
+
+    dalla custom_print() -> fargh {
+        ektb("Nuqta: (%lld, %lld)\n", had.x, had.y);
+    }
+}
+
+// Instantiation
+dir p1 = Nuqta { x: 5, y: 10 };
+p1.custom_print();
+
+// Default values are applied to missing fields
+dir p2 = Nuqta { x: 42 }; // y defaults to 0
+p2.custom_print();
+```
+
+---
+
+## Memory Management (`kssr`)
+
+Since strings (`nass`), arrays (`jadwl`), and structs (`9aleb`) are heap-allocated, you can use the `kssr` keyword to manually free their memory.
+
+```dz
+dir p = Nuqta { x: 10, y: 20 };
+kssr p; // frees the struct from the heap
+```
+
+---
+
 ## Import (`jibli`) & Standard Library
 
 You can recursively import other custom `.dz` files in the directory or use the bundled `"math"` standard library.

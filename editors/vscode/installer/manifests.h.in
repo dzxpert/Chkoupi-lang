@@ -1,0 +1,6 @@
+#pragma once
+#include <string>
+
+const std::string package_json = R"JSON(@PACKAGE_JSON_CONTENT@)JSON";
+const std::string language_configuration_json = R"JSON(@LANG_CONFIG_CONTENT@)JSON";
+const std::string chkoupi_tmLanguage_json = R"JSON(@GRAMMAR_CONTENT@)JSON";

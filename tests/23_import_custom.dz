@@ -1,4 +1,4 @@
-jibli "tests/my_utils";
+jibli "my_utils";
 
 greet(" Ibrahim");
 

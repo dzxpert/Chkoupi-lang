@@ -1,0 +1,16 @@
+9aleb Nuqta {
+    dir name : nass;
+
+    dalla kssr() -> fargh {
+        ektb("Destructor executed for %s!\n", had.name);
+        kssr had.name;
+    }
+}
+
+dalla main() -> tabi3i {
+    dir suffix = "_test";
+    dir p = Nuqta { name: "Nuqta" + suffix };
+    ektb("Created %s\n", p.name);
+    kssr p;
+    raja3 0;
+}

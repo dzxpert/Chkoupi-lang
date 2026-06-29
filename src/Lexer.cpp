@@ -25,6 +25,10 @@ static const std::unordered_map<std::string, TokenKind> KEYWORDS = {
     {"raja3",       TokenKind::Raja3},
     // Import
     {"jibli",       TokenKind::Jibli},
+    // Structs & Memory
+    {"9aleb",       TokenKind::Qaleb},
+    {"had",         TokenKind::Had},
+    {"kssr",        TokenKind::Kssr},
     // Booleans
     {"sa7",         TokenKind::Sa7},
     {"ghalt",       TokenKind::Ghalt},

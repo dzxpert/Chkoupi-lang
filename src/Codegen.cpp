@@ -27,6 +27,7 @@ Codegen::Codegen()
     declarePrintf();
     declareScanf();
     declareMalloc();
+    declareFree();
     declareStrcmp();
     declareMemcpy();
 
@@ -56,6 +57,10 @@ llvm::Type* Codegen::getLLVMType(const std::string& t) {
                                       llvm::Type::getInt64Ty(ctx)
                                   });
     if (t == "void")              return llvm::Type::getVoidTy(ctx);
+    auto it = structTypes.find(t);
+    if (it != structTypes.end()) {
+        return llvm::PointerType::getUnqual(it->second);
+    }
     throw std::runtime_error("Unknown type: " + t);
 }
 
@@ -67,12 +72,20 @@ void Codegen::declareMalloc() {
     llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "malloc", module.get());
 }
 
+void Codegen::declareFree() {
+    llvm::FunctionType* ft = llvm::FunctionType::get(
+        llvm::Type::getVoidTy(ctx),
+        {llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx))},
+        false);
+    llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "free", module.get());
+}
+
 std::string Codegen::inferType(const Expr& expr) {
     if (dynamic_cast<const IntLitExpr*>(&expr))    return "int";
     if (dynamic_cast<const FloatLitExpr*>(&expr))  return "float";
     if (dynamic_cast<const BoolLitExpr*>(&expr))   return "bool";
     if (dynamic_cast<const CharLitExpr*>(&expr))   return "char";
-    if (dynamic_cast<const StringLitExpr*>(&expr)) return "string";
+    if (dynamic_cast<const StringLitExpr*>(&expr)) return "string_literal";
     if (auto* e = dynamic_cast<const VarExpr*>(&expr)) {
         auto it = variableTypes.find(e->name);
         if (it != variableTypes.end()) return it->second;
@@ -95,10 +108,36 @@ std::string Codegen::inferType(const Expr& expr) {
         return "jadwl<" + inferType(*e->elements[0]) + ">";
     }
     if (auto* e = dynamic_cast<const BinaryExpr*>(&expr)) {
-        return inferType(*e->lhs);
+        std::string lhsType = inferType(*e->lhs);
+        std::string rhsType = inferType(*e->rhs);
+        if ((lhsType == "string" || lhsType == "string_literal") &&
+            (rhsType == "string" || rhsType == "string_literal") &&
+            e->op == "+") {
+            return "string";
+        }
+        return lhsType;
     }
     if (auto* e = dynamic_cast<const UnaryExpr*>(&expr)) {
         return inferType(*e->operand);
+    }
+    if (auto* e = dynamic_cast<const StructLitExpr*>(&expr)) {
+        return e->structName;
+    }
+    if (auto* e = dynamic_cast<const MemberExpr*>(&expr)) {
+        std::string targetType = inferType(*e->target);
+        auto it = structFieldTypes.find(targetType);
+        if (it != structFieldTypes.end()) {
+            auto fIt = it->second.find(e->fieldName);
+            if (fIt != it->second.end()) return fIt->second;
+        }
+        return "int";
+    }
+    if (auto* e = dynamic_cast<const MethodCallExpr*>(&expr)) {
+        std::string targetType = inferType(*e->target);
+        std::string mangledName = targetType + "." + e->methodName;
+        auto it = functionReturnTypes.find(mangledName);
+        if (it != functionReturnTypes.end()) return it->second;
+        return "int";
     }
     return "int";
 }
@@ -160,15 +199,116 @@ void Codegen::generate(const Program& prog) {
     functionReturnTypes["sqrt"] = "float";
     functionReturnTypes["pow"]  = "float";
 
-    // First pass: register function return types
+    // Pre-pass 1: Create opaque named StructTypes
+    for (auto& s : prog.stmts) {
+        if (auto* sd = dynamic_cast<const StructDeclStmt*>(s.get())) {
+            llvm::StructType* structTy = llvm::StructType::create(ctx, sd->name);
+            structTypes[sd->name] = structTy;
+
+            std::vector<std::string> orderedFields;
+            std::map<std::string, std::string> fieldTys;
+            std::map<std::string, const Expr*> defaultVals;
+            for (const auto& field : sd->fields) {
+                orderedFields.push_back(field.name);
+                fieldTys[field.name] = field.type;
+                if (field.defaultVal) {
+                    defaultVals[field.name] = field.defaultVal.get();
+                }
+            }
+            structFields[sd->name] = orderedFields;
+            structFieldTypes[sd->name] = fieldTys;
+            structDefaultVals[sd->name] = defaultVals;
+        }
+    }
+
+    // Pre-pass 2: Populate struct bodies (field types)
+    for (auto& s : prog.stmts) {
+        if (auto* sd = dynamic_cast<const StructDeclStmt*>(s.get())) {
+            llvm::StructType* structTy = structTypes[sd->name];
+            std::vector<llvm::Type*> fieldTypes;
+            for (const auto& field : sd->fields) {
+                fieldTypes.push_back(getLLVMType(field.type));
+            }
+            structTy->setBody(fieldTypes);
+        }
+    }
+
+    // Pre-pass 3: register function and method return types
     for (auto& s : prog.stmts) {
         if (auto* f = dynamic_cast<const FuncDecl*>(s.get())) {
             std::string retType = f->returnType;
             if (retType.empty()) {
                 const ReturnStmt* r = findReturnStmt(f->body);
-                retType = (r && r->value) ? inferType(*r->value) : "void";
+                if (r && r->value) {
+                    auto savedVariableTypes = variableTypes;
+                    for (const auto& p : f->params) {
+                        variableTypes[p.name] = p.type;
+                    }
+                    retType = inferType(*r->value);
+                    variableTypes = savedVariableTypes;
+                } else {
+                    retType = "void";
+                }
             }
             functionReturnTypes[f->name] = retType;
+        } else if (auto* sd = dynamic_cast<const StructDeclStmt*>(s.get())) {
+            for (auto& mStmt : sd->methods) {
+                if (auto* f = dynamic_cast<const FuncDecl*>(mStmt.get())) {
+                    std::string retType = f->returnType;
+                    if (retType.empty()) {
+                        const ReturnStmt* r = findReturnStmt(f->body);
+                        if (r && r->value) {
+                            auto savedVariableTypes = variableTypes;
+                            variableTypes["had"] = sd->name;
+                            for (const auto& p : f->params) {
+                                variableTypes[p.name] = p.type;
+                            }
+                            retType = inferType(*r->value);
+                            variableTypes = savedVariableTypes;
+                        } else {
+                            retType = "void";
+                        }
+                    }
+                    std::string mangledName = sd->name + "." + f->name;
+                    functionReturnTypes[mangledName] = retType;
+                }
+            }
+        }
+    }
+
+    // Pre-pass 3.5: Declare all functions and methods (so forward-references work in method bodies and user functions)
+    for (auto& s : prog.stmts) {
+        if (auto* f = dynamic_cast<const FuncDecl*>(s.get())) {
+            std::vector<llvm::Type*> paramTypes;
+            for (auto& p : f->params) paramTypes.push_back(getLLVMType(p.type));
+            std::string retTypeStr = functionReturnTypes[f->name];
+            auto* retTy = getLLVMType(retTypeStr);
+            auto* ft    = llvm::FunctionType::get(retTy, paramTypes, false);
+            llvm::Function::Create(ft, llvm::Function::ExternalLinkage, f->name, module.get());
+        } else if (auto* sd = dynamic_cast<const StructDeclStmt*>(s.get())) {
+            for (auto& mStmt : sd->methods) {
+                if (auto* fd = dynamic_cast<const FuncDecl*>(mStmt.get())) {
+                    std::vector<llvm::Type*> paramTypes;
+                    paramTypes.push_back(getLLVMType(sd->name));
+                    for (auto& p : fd->params) paramTypes.push_back(getLLVMType(p.type));
+                    std::string mangledName = sd->name + "." + fd->name;
+                    std::string retTypeStr = functionReturnTypes[mangledName];
+                    auto* retTy = getLLVMType(retTypeStr);
+                    auto* ft    = llvm::FunctionType::get(retTy, paramTypes, false);
+                    llvm::Function::Create(ft, llvm::Function::ExternalLinkage, mangledName, module.get());
+                }
+            }
+        }
+    }
+
+    // Pre-pass 4: Compile struct methods
+    for (auto& s : prog.stmts) {
+        if (auto* sd = dynamic_cast<const StructDeclStmt*>(s.get())) {
+            for (auto& mStmt : sd->methods) {
+                if (auto* fd = dynamic_cast<const FuncDecl*>(mStmt.get())) {
+                    genMethod(sd->name, *fd);
+                }
+            }
         }
     }
 
@@ -202,7 +342,7 @@ void Codegen::dumpIR() const {
 }
 
 // ── JIT execution ─────────────────────────────────────────────────────────────
-void Codegen::runJIT() {
+void Codegen::runJIT(bool exitOnComplete) {
     // MCJIT takes ownership of the module — move it out
     std::string errStr;
     llvm::ExecutionEngine* ee =
@@ -223,7 +363,9 @@ void Codegen::runJIT() {
 
     int exitCode = mainFn();
     delete ee;
-    std::exit(exitCode);
+    if (exitOnComplete) {
+        std::exit(exitCode);
+    }
 }
 
 void Codegen::writeObjectFile(const std::string& path) const {
@@ -267,6 +409,8 @@ void Codegen::genStmt(const Stmt& stmt) {
     if (dynamic_cast<const BreakStmt*>(&stmt))               { genBreak();     return; }
     if (dynamic_cast<const ContinueStmt*>(&stmt))            { genContinue();  return; }
     if (auto* s = dynamic_cast<const FuncDecl*>(&stmt))       { genFunc(*s);    return; }
+    if (auto* s = dynamic_cast<const StructDeclStmt*>(&stmt)) { genStructDecl(*s); return; }
+    if (auto* s = dynamic_cast<const FreeStmt*>(&stmt))       { genFree(*s);    return; }
     if (auto* s = dynamic_cast<const ExprStmt*>(&stmt))       { genExpr(*s->expr); return; }
     throw std::runtime_error("Unknown statement type");
 }
@@ -311,7 +455,7 @@ void Codegen::genPrint(const PrintStmt& s) {
     for (size_t i = 0; i < s.args.size(); ++i) {
         llvm::Value* val = genExpr(*s.args[i]);
         std::string argType = inferType(*s.args[i]);
-        if (argType == "string") {
+        if (argType == "string" || argType == "string_literal") {
             val = builder.CreateExtractValue(val, 0, "print.strptr");
         } else if (i > 0) { // Do not promote the format string itself
             llvm::Type* ty = val->getType();
@@ -488,8 +632,11 @@ void Codegen::genFunc(const FuncDecl& s) {
     for (auto& p : s.params) paramTypes.push_back(getLLVMType(p.type));
     std::string retTypeStr = functionReturnTypes[s.name];
     auto* retTy = getLLVMType(retTypeStr);
-    auto* ft    = llvm::FunctionType::get(retTy, paramTypes, false);
-    auto* fn    = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, s.name, module.get());
+    llvm::Function* fn = module->getFunction(s.name);
+    if (!fn) {
+        auto* ft = llvm::FunctionType::get(retTy, paramTypes, false);
+        fn = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, s.name, module.get());
+    }
 
     auto* bb = llvm::BasicBlock::Create(ctx, "entry", fn);
     builder.SetInsertPoint(bb);
@@ -514,6 +661,91 @@ void Codegen::genFunc(const FuncDecl& s) {
     llvm::verifyFunction(*fn, &llvm::errs());
 
     // ── Restore caller context ────────────────────────────────────────────────
+    namedValues     = savedNamedValues;
+    variableTypes   = savedVariableTypes;
+    currentFunction = savedFn;
+    if (savedBB)
+        builder.SetInsertPoint(savedBB);
+}
+
+void Codegen::genStructDecl(const StructDeclStmt& s) {
+    // Handled in pre-passes
+}
+
+void Codegen::genFree(const FreeStmt& s) {
+    llvm::Value* val = genExpr(*s.value);
+    std::string type = inferType(*s.value);
+
+    llvm::Function* freeFn = module->getFunction("free");
+    if (!freeFn) throw std::runtime_error("free is not declared");
+
+    if (type == "string") {
+        llvm::Value* ptr = builder.CreateExtractValue(val, 0, "free.strptr");
+        builder.CreateCall(freeFn, {ptr});
+    } else if (type.rfind("jadwl<", 0) == 0) {
+        llvm::Value* offset = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), -8);
+        llvm::Value* rawPtr = builder.CreateGEP(llvm::Type::getInt8Ty(ctx), val, offset);
+        builder.CreateCall(freeFn, {rawPtr});
+    } else {
+        std::string destructorName = type + ".kssr";
+        llvm::Function* destructorFn = module->getFunction(destructorName);
+        if (destructorFn) {
+            builder.CreateCall(destructorFn, {val});
+        }
+        llvm::Value* rawPtr = builder.CreateBitCast(val, llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx)));
+        builder.CreateCall(freeFn, {rawPtr});
+    }
+}
+
+void Codegen::genMethod(const std::string& structName, const FuncDecl& fd) {
+    llvm::Function*  savedFn = currentFunction;
+    llvm::BasicBlock* savedBB = builder.GetInsertBlock();
+    auto savedNamedValues = namedValues;
+    auto savedVariableTypes = variableTypes;
+
+    std::vector<llvm::Type*> paramTypes;
+    paramTypes.push_back(getLLVMType(structName));
+    for (auto& p : fd.params) paramTypes.push_back(getLLVMType(p.type));
+
+    std::string mangledName = structName + "." + fd.name;
+    std::string retTypeStr = functionReturnTypes[mangledName];
+    auto* retTy = getLLVMType(retTypeStr);
+    llvm::Function* fn = module->getFunction(mangledName);
+    if (!fn) {
+        auto* ft = llvm::FunctionType::get(retTy, paramTypes, false);
+        fn = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, mangledName, module.get());
+    }
+
+    auto* bb = llvm::BasicBlock::Create(ctx, "entry", fn);
+    builder.SetInsertPoint(bb);
+    currentFunction = fn;
+
+    auto argIt = fn->arg_begin();
+    llvm::Argument& hadArg = *argIt++;
+    hadArg.setName("had");
+    auto* hadAlloca = createEntryAlloca(fn, "had", hadArg.getType());
+    builder.CreateStore(&hadArg, hadAlloca);
+    namedValues["had"] = hadAlloca;
+    variableTypes["had"] = structName;
+
+    size_t idx = 0;
+    while (argIt != fn->arg_end()) {
+        llvm::Argument& arg = *argIt++;
+        const auto& p = fd.params[idx++];
+        arg.setName(p.name);
+        auto* alloca = createEntryAlloca(fn, p.name, arg.getType());
+        builder.CreateStore(&arg, alloca);
+        namedValues[p.name] = alloca;
+        variableTypes[p.name] = p.type;
+    }
+
+    genBlock(fd.body);
+
+    if (retTy->isVoidTy() && !builder.GetInsertBlock()->getTerminator())
+        builder.CreateRetVoid();
+
+    llvm::verifyFunction(*fn, &llvm::errs());
+
     namedValues     = savedNamedValues;
     variableTypes   = savedVariableTypes;
     currentFunction = savedFn;
@@ -553,6 +785,10 @@ llvm::Value* Codegen::genExpr(const Expr& expr) {
     if (auto* e = dynamic_cast<const ArrayLitExpr*>(&expr))  return genArrayLit(*e);
     if (auto* e = dynamic_cast<const IndexExpr*>(&expr))     return genIndex(*e);
     if (auto* e = dynamic_cast<const IndexAssignExpr*>(&expr)) return genIndexAssign(*e);
+    if (auto* e = dynamic_cast<const StructLitExpr*>(&expr))  return genStructLit(*e);
+    if (auto* e = dynamic_cast<const MemberExpr*>(&expr))     return genMemberExpr(*e);
+    if (auto* e = dynamic_cast<const MemberAssignExpr*>(&expr)) return genMemberAssign(*e);
+    if (auto* e = dynamic_cast<const MethodCallExpr*>(&expr)) return genMethodCall(*e);
     throw std::runtime_error("Unknown expression type");
 }
 
@@ -567,7 +803,8 @@ llvm::Value* Codegen::genBinary(const BinaryExpr& e) {
     std::string lhsType = inferType(*e.lhs);
     std::string rhsType = inferType(*e.rhs);
 
-    if (lhsType == "string" && rhsType == "string") {
+    if ((lhsType == "string" || lhsType == "string_literal") &&
+        (rhsType == "string" || rhsType == "string_literal")) {
         if (e.op == "+") {
             llvm::Value* lPtr = builder.CreateExtractValue(L, 0);
             llvm::Value* lLen = builder.CreateExtractValue(L, 1);
@@ -701,7 +938,7 @@ llvm::Value* Codegen::genCall(const CallExpr& e) {
             throw std::runtime_error("Built-in function 'tool' expects exactly 1 argument");
         llvm::Value* arr = genExpr(*e.args[0]);
         std::string targetType = inferType(*e.args[0]);
-        if (targetType == "string") {
+        if (targetType == "string" || targetType == "string_literal") {
             return builder.CreateExtractValue(arr, 1, "string.len");
         }
         if (targetType.rfind("jadwl<", 0) != 0) {
@@ -833,4 +1070,110 @@ void Codegen::declareMemcpy() {
         },
         false);
     llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "memcpy", module.get());
+}
+
+llvm::Value* Codegen::genStructLit(const StructLitExpr& e) {
+    llvm::Function* mallocFn = module->getFunction("malloc");
+    if (!mallocFn) throw std::runtime_error("malloc is not declared");
+
+    llvm::StructType* structTy = structTypes[e.structName];
+    if (!structTy) throw std::runtime_error("Unknown struct type: " + e.structName);
+
+    llvm::Value* sizeOfVal = llvm::ConstantExpr::getSizeOf(structTy);
+    llvm::Value* rawPtr = builder.CreateCall(mallocFn, {sizeOfVal});
+    llvm::Value* structPtr = builder.CreateBitCast(rawPtr, llvm::PointerType::getUnqual(structTy));
+
+    const auto& fields = structFields[e.structName];
+    const auto& defaultVals = structDefaultVals[e.structName];
+
+    std::map<std::string, const Expr*> initMap;
+    for (const auto& init : e.initializers) {
+        initMap[init.first] = init.second.get();
+    }
+
+    for (size_t i = 0; i < fields.size(); ++i) {
+        const std::string& fieldName = fields[i];
+        llvm::Value* val = nullptr;
+
+        auto it = initMap.find(fieldName);
+        if (it != initMap.end()) {
+            val = genExpr(*it->second);
+        } else {
+            auto dIt = defaultVals.find(fieldName);
+            if (dIt != defaultVals.end()) {
+                val = genExpr(*dIt->second);
+            } else {
+                llvm::Type* expectedFieldTy = structTy->getElementType(i);
+                val = llvm::Constant::getNullValue(expectedFieldTy);
+            }
+        }
+
+        llvm::Type* expectedFieldTy = structTy->getElementType(i);
+        if (expectedFieldTy->isDoubleTy() && val->getType()->isIntegerTy()) {
+            val = builder.CreateSIToFP(val, expectedFieldTy);
+        } else if (expectedFieldTy->isIntegerTy() && val->getType()->isDoubleTy()) {
+            val = builder.CreateFPToSI(val, expectedFieldTy);
+        }
+
+        llvm::Value* fieldPtr = builder.CreateStructGEP(structTy, structPtr, i);
+        builder.CreateStore(val, fieldPtr);
+    }
+
+    return structPtr;
+}
+
+llvm::Value* Codegen::genMemberExpr(const MemberExpr& e) {
+    llvm::Value* targetPtr = genExpr(*e.target);
+    std::string targetType = inferType(*e.target);
+
+    llvm::StructType* structTy = structTypes[targetType];
+    if (!structTy) throw std::runtime_error("Unknown struct type: " + targetType);
+
+    const auto& fields = structFields[targetType];
+    auto it = std::find(fields.begin(), fields.end(), e.fieldName);
+    if (it == fields.end()) throw std::runtime_error("Field not found: " + e.fieldName);
+    size_t index = std::distance(fields.begin(), it);
+
+    llvm::Value* fieldPtr = builder.CreateStructGEP(structTy, targetPtr, index);
+    return builder.CreateLoad(structTy->getElementType(index), fieldPtr, "member." + e.fieldName);
+}
+
+llvm::Value* Codegen::genMemberAssign(const MemberAssignExpr& e) {
+    llvm::Value* targetPtr = genExpr(*e.target);
+    std::string targetType = inferType(*e.target);
+
+    llvm::StructType* structTy = structTypes[targetType];
+    if (!structTy) throw std::runtime_error("Unknown struct type: " + targetType);
+
+    const auto& fields = structFields[targetType];
+    auto it = std::find(fields.begin(), fields.end(), e.fieldName);
+    if (it == fields.end()) throw std::runtime_error("Field not found: " + e.fieldName);
+    size_t index = std::distance(fields.begin(), it);
+
+    llvm::Value* val = genExpr(*e.value);
+
+    llvm::Type* expectedFieldTy = structTy->getElementType(index);
+    if (expectedFieldTy->isDoubleTy() && val->getType()->isIntegerTy()) {
+        val = builder.CreateSIToFP(val, expectedFieldTy);
+    } else if (expectedFieldTy->isIntegerTy() && val->getType()->isDoubleTy()) {
+        val = builder.CreateFPToSI(val, expectedFieldTy);
+    }
+
+    llvm::Value* fieldPtr = builder.CreateStructGEP(structTy, targetPtr, index);
+    builder.CreateStore(val, fieldPtr);
+    return val;
+}
+
+llvm::Value* Codegen::genMethodCall(const MethodCallExpr& e) {
+    std::string targetType = inferType(*e.target);
+    std::string mangledName = targetType + "." + e.methodName;
+
+    llvm::Function* fn = module->getFunction(mangledName);
+    if (!fn) throw std::runtime_error("Unknown method: " + mangledName);
+
+    std::vector<llvm::Value*> args;
+    args.push_back(genExpr(*e.target));
+    for (auto& a : e.args) args.push_back(genExpr(*a));
+
+    return builder.CreateCall(fn, args);
 }

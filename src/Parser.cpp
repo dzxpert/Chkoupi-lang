@@ -84,6 +84,9 @@ std::string Parser::parseType() {
     if (isTypeToken(peek().kind)) {
         return tokenToType(advance().kind);
     }
+    if (check(TokenKind::Identifier)) {
+        return advance().lexeme;
+    }
     throw std::runtime_error("Expected type name at line " + std::to_string(peek().line));
 }
 
@@ -99,7 +102,9 @@ StmtPtr Parser::parseStmt() {
     if (check(TokenKind::Raja3))      return parseReturn();
     if (check(TokenKind::A7bss))      return parseBreak();
     if (check(TokenKind::Kml))        return parseContinue();
-    if (check(TokenKind::Dalla))      return parseFuncDecl();
+    if (check(TokenKind::Dalla))      return parseFuncDecl(false);
+    if (check(TokenKind::Qaleb))      return parseStructDecl();
+    if (check(TokenKind::Kssr))       return parseFree();
     if (check(TokenKind::Bdl))        return parseSwitch();
     if (check(TokenKind::Jarb))       return parseTryCatch();
     if (check(TokenKind::Jibli))      return parseImport();
@@ -234,10 +239,18 @@ StmtPtr Parser::parseContinue() {
 }
 
 // dalla name(p: tabi3i, ...) -> tabi3i { ... }
-StmtPtr Parser::parseFuncDecl() {
+StmtPtr Parser::parseFuncDecl(bool isMethod) {
     advance(); // consume dalla
     auto s = std::make_unique<FuncDecl>();
-    s->name = expect(TokenKind::Identifier, "Expected function name").lexeme;
+    std::string name;
+    if (check(TokenKind::Identifier)) {
+        name = advance().lexeme;
+    } else if (isMethod && check(TokenKind::Kssr)) {
+        name = advance().lexeme;
+    } else {
+        throw std::runtime_error("Expected function name at line " + std::to_string(peek().line));
+    }
+    s->name = name;
     expect(TokenKind::LParen, "Expected '('");
     while (!check(TokenKind::RParen) && !check(TokenKind::Eof)) {
         FuncDecl::Param p;
@@ -293,6 +306,42 @@ StmtPtr Parser::parseImport() {
     auto s = std::make_unique<ImportStmt>();
     s->path = expect(TokenKind::String, "Expected module path string after jibli").lexeme;
     expect(TokenKind::Semicolon, "Expected ';'");
+    return s;
+}
+
+StmtPtr Parser::parseStructDecl() {
+    advance(); // consume 9aleb
+    auto s = std::make_unique<StructDeclStmt>();
+    s->name = expect(TokenKind::Identifier, "Expected struct name").lexeme;
+    expect(TokenKind::LBrace, "Expected '{' after struct name");
+    
+    while (!check(TokenKind::RBrace) && !check(TokenKind::Eof)) {
+        if (check(TokenKind::Dalla)) {
+            s->methods.push_back(parseFuncDecl(true));
+        } else {
+            expect(TokenKind::Dir, "Struct members must be fields ('dir') or methods ('dalla')");
+            std::string fieldName = expect(TokenKind::Identifier, "Expected field name").lexeme;
+            expect(TokenKind::Colon, "Expected ':' for field type annotation");
+            std::string fieldType = parseType();
+            
+            ExprPtr defaultVal = nullptr;
+            if (match(TokenKind::Eq)) {
+                defaultVal = parseExpr();
+            }
+            expect(TokenKind::Semicolon, "Expected ';' after field declaration");
+            s->fields.push_back({fieldName, fieldType, std::move(defaultVal)});
+        }
+    }
+    
+    expect(TokenKind::RBrace, "Expected '}' at end of struct declaration");
+    return s;
+}
+
+StmtPtr Parser::parseFree() {
+    advance(); // consume kssr
+    auto s = std::make_unique<FreeStmt>();
+    s->value = parseExpr();
+    expect(TokenKind::Semicolon, "Expected ';' after kssr");
     return s;
 }
 
@@ -366,6 +415,12 @@ ExprPtr Parser::parseAssign() {
             auto e = std::make_unique<IndexAssignExpr>();
             e->target = std::move(idx->target);
             e->index = std::move(idx->index);
+            e->value = std::move(rhs);
+            return e;
+        } else if (auto* mem = dynamic_cast<MemberExpr*>(lhs.get())) {
+            auto e = std::make_unique<MemberAssignExpr>();
+            e->target = std::move(mem->target);
+            e->fieldName = mem->fieldName;
             e->value = std::move(rhs);
             return e;
         }
@@ -481,6 +536,43 @@ ExprPtr Parser::parseCall() {
             idx->target = std::move(expr);
             idx->index = std::move(indexExpr);
             expr = std::move(idx);
+        } else if (match(TokenKind::Dot)) {
+            std::string fieldName;
+            bool isMethodCall = false;
+            if (check(TokenKind::Identifier)) {
+                fieldName = advance().lexeme;
+                if (check(TokenKind::LParen)) {
+                    isMethodCall = true;
+                }
+            } else if (check(TokenKind::Kssr)) {
+                if (peek(1).kind == TokenKind::LParen) {
+                    fieldName = advance().lexeme;
+                    isMethodCall = true;
+                } else {
+                    throw std::runtime_error("Expected field or method name after '.'");
+                }
+            } else {
+                throw std::runtime_error("Expected field or method name after '.'");
+            }
+
+            if (isMethodCall) {
+                advance(); // consume (
+                auto mc = std::make_unique<MethodCallExpr>();
+                mc->target = std::move(expr);
+                mc->methodName = fieldName;
+                if (!check(TokenKind::RParen)) {
+                    mc->args.push_back(parseExpr());
+                    while (match(TokenKind::Comma))
+                        mc->args.push_back(parseExpr());
+                }
+                expect(TokenKind::RParen, "Expected ')' after method arguments");
+                expr = std::move(mc);
+            } else {
+                auto mem = std::make_unique<MemberExpr>();
+                mem->target = std::move(expr);
+                mem->fieldName = fieldName;
+                expr = std::move(mem);
+            }
         } else if (check(TokenKind::PlusPlus) || check(TokenKind::MinusMinus)) {
             auto* v = dynamic_cast<VarExpr*>(expr.get());
             if (!v) {
@@ -551,7 +643,32 @@ ExprPtr Parser::parsePrimary() {
         e->value = false;
         return e;
     }
+    if (check(TokenKind::Had)) {
+        advance();
+        auto e = std::make_unique<VarExpr>();
+        e->name = "had";
+        return e;
+    }
     if (check(TokenKind::Identifier)) {
+        if (peek(1).kind == TokenKind::LBrace) {
+            auto nameToken = advance(); // consume identifier
+            advance(); // consume {
+            auto e = std::make_unique<StructLitExpr>();
+            e->structName = nameToken.lexeme;
+            if (!check(TokenKind::RBrace)) {
+                while (true) {
+                    std::string fieldName = expect(TokenKind::Identifier, "Expected field name in struct literal").lexeme;
+                    expect(TokenKind::Colon, "Expected ':' after field name in struct literal");
+                    auto fieldValue = parseExpr();
+                    e->initializers.push_back({fieldName, std::move(fieldValue)});
+                    if (!match(TokenKind::Comma)) break;
+                    if (check(TokenKind::RBrace)) break; // allow trailing comma
+                }
+            }
+            expect(TokenKind::RBrace, "Expected '}' at the end of struct literal");
+            return e;
+        }
+        
         auto e = std::make_unique<VarExpr>();
         e->name = advance().lexeme;
         return e;

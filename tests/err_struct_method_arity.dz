@@ -1,0 +1,11 @@
+9aleb Nuqta {
+    dir x : tabi3i;
+    dalla custom_print(prefix: nass) {
+        ektb("%s: %lld\n", prefix, had.x);
+    }
+}
+
+dalla main() {
+    dir p = Nuqta { x: 5 };
+    p.custom_print(); // missing argument prefix
+}

@@ -59,3 +59,17 @@ if(EXISTS "${VS2022_DIA}/diaguids.lib")
 else()
     message(WARNING "VS2022 DIA SDK not found at: ${VS2022_DIA}")
 endif()
+
+# ── VS Code Extension Installer ────────────────────────────────
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/editors/vscode/package.json" PACKAGE_JSON_CONTENT)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/editors/vscode/language-configuration.json" LANG_CONFIG_CONTENT)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/editors/vscode/syntaxes/chkoupi.tmLanguage.json" GRAMMAR_CONTENT)
+
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/editors/vscode/installer/manifests.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/manifests.h"
+    @ONLY
+)
+
+add_executable(chkoupi-vscode-installer editors/vscode/installer/main.cpp)
+target_include_directories(chkoupi-vscode-installer PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")

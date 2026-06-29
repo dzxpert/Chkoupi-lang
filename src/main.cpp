@@ -35,10 +35,43 @@ static void printUsage(const char* prog) {
               << "  --emit-obj: compile to object file\n";
 }
 
+static std::string escapeStringLiteral(const std::string& s) {
+    std::string res = "\"";
+    for (char c : s) {
+        if (c == '"') res += "\\\"";
+        else if (c == '\\') res += "\\\\";
+        else if (c == '\n') res += "\\n";
+        else if (c == '\t') res += "\\t";
+        else res += c;
+    }
+    res += "\"";
+    return res;
+}
+
+static std::string escapeCharLiteral(const std::string& s) {
+    if (s.empty()) return "''";
+    char c = s[0];
+    std::string res = "'";
+    if (c == '\'') res += "\\'";
+    else if (c == '\\') res += "\\\\";
+    else if (c == '\n') res += "\\n";
+    else if (c == '\t') res += "\\t";
+    else if (c == '\0') res += "\\0";
+    else res += c;
+    res += "'";
+    return res;
+}
+
 static std::string serializeTokens(const std::vector<Token>& tokens, size_t start, size_t end) {
     std::string res = "";
     for (size_t i = start; i <= end; ++i) {
-        res += tokens[i].lexeme;
+        if (tokens[i].kind == TokenKind::String) {
+            res += escapeStringLiteral(tokens[i].lexeme);
+        } else if (tokens[i].kind == TokenKind::Char) {
+            res += escapeCharLiteral(tokens[i].lexeme);
+        } else {
+            res += tokens[i].lexeme;
+        }
         if (i < end) {
             res += " ";
         }
@@ -59,7 +92,7 @@ static void runREPL() {
     bool inBlockComment = false;
 
     while (true) {
-        if (openBraces > 0) {
+        if (openBraces > 0 || inString || inChar || inBlockComment) {
             std::cout << "...      ";
         } else {
             std::cout << "chkoupi > ";
@@ -75,7 +108,7 @@ static void runREPL() {
         trimmed.erase(0, trimmed.find_first_not_of(" \t\r\n"));
         trimmed.erase(trimmed.find_last_not_of(" \t\r\n") + 1);
 
-        if (openBraces == 0 && (trimmed == "khroj;" || trimmed == "exit;")) {
+        if (openBraces == 0 && !inString && !inChar && !inBlockComment && (trimmed == "khroj;" || trimmed == "exit;")) {
             break;
         }
 
@@ -120,7 +153,7 @@ static void runREPL() {
         }
         if (openBraces < 0) openBraces = 0;
 
-        if (openBraces > 0) {
+        if (openBraces > 0 || inString || inChar || inBlockComment) {
             continue;
         }
 
@@ -146,35 +179,44 @@ static void runREPL() {
             Lexer inputLexer(multiLineBuffer);
             auto inputTokens = inputLexer.tokenize();
             std::string extractedDefs = "";
+            int outerBraceDepth = 0;
             for (size_t i = 0; i < inputTokens.size(); ++i) {
-                if (inputTokens[i].kind == TokenKind::Dalla || inputTokens[i].kind == TokenKind::Qaleb) {
-                    size_t start = i;
-                    int braceDepth = 0;
-                    size_t end = i;
-                    for (size_t j = i; j < inputTokens.size(); ++j) {
-                        if (inputTokens[j].kind == TokenKind::LBrace) {
-                            braceDepth++;
-                        } else if (inputTokens[j].kind == TokenKind::RBrace) {
-                            braceDepth--;
-                            if (braceDepth == 0) {
+                if (inputTokens[i].kind == TokenKind::LBrace) {
+                    outerBraceDepth++;
+                } else if (inputTokens[i].kind == TokenKind::RBrace) {
+                    outerBraceDepth--;
+                }
+
+                if (outerBraceDepth == 0) {
+                    if (inputTokens[i].kind == TokenKind::Dalla || inputTokens[i].kind == TokenKind::Qaleb) {
+                        size_t start = i;
+                        int braceDepth = 0;
+                        size_t end = i;
+                        for (size_t j = i; j < inputTokens.size(); ++j) {
+                            if (inputTokens[j].kind == TokenKind::LBrace) {
+                                braceDepth++;
+                            } else if (inputTokens[j].kind == TokenKind::RBrace) {
+                                braceDepth--;
+                                if (braceDepth == 0) {
+                                    end = j;
+                                    i = j; // skip forward in outer loop
+                                    break;
+                                }
+                            }
+                        }
+                        extractedDefs += serializeTokens(inputTokens, start, end);
+                    } else if (inputTokens[i].kind == TokenKind::Dir || inputTokens[i].kind == TokenKind::Dima) {
+                        size_t start = i;
+                        size_t end = i;
+                        for (size_t j = i; j < inputTokens.size(); ++j) {
+                            if (inputTokens[j].kind == TokenKind::Semicolon) {
                                 end = j;
                                 i = j; // skip forward in outer loop
                                 break;
                             }
                         }
+                        extractedDefs += serializeTokens(inputTokens, start, end);
                     }
-                    extractedDefs += serializeTokens(inputTokens, start, end);
-                } else if (inputTokens[i].kind == TokenKind::Dir || inputTokens[i].kind == TokenKind::Dima) {
-                    size_t start = i;
-                    size_t end = i;
-                    for (size_t j = i; j < inputTokens.size(); ++j) {
-                        if (inputTokens[j].kind == TokenKind::Semicolon) {
-                            end = j;
-                            i = j; // skip forward in outer loop
-                            break;
-                        }
-                    }
-                    extractedDefs += serializeTokens(inputTokens, start, end);
                 }
             }
             accumulatedCode += extractedDefs;

@@ -135,6 +135,18 @@ def run_tests():
             ],
             "expected_stdout": "b=34",
             "expected_err_contains": "[chkoupi khta9]"
+        },
+        {
+            "name": "repl_refinements",
+            "inputs": [
+                "dalla test_func() {",
+                "    dir nested_var = 100;",
+                "}",
+                'dir outer_var = "hello\\nworld";',
+                'ektb("str: %s\\n", outer_var);',
+                "khroj;"
+            ],
+            "expected_stdout": "str: hello\nworld"
         }
     ]
 

@@ -35,8 +35,81 @@ static void printUsage(const char* prog) {
               << "  --emit-obj: compile to object file\n";
 }
 
+static void runREPL() {
+    std::cout << "Chkoupi-lang Interactive REPL\n";
+    std::cout << "Type 'khroj;' to exit.\n";
+    std::cout << "=========================================\n";
+
+    std::string accumulatedCode = "";
+    std::string multiLineBuffer = "";
+    int openBraces = 0;
+
+    while (true) {
+        if (openBraces > 0) {
+            std::cout << "...      ";
+        } else {
+            std::cout << "chkoupi > ";
+        }
+        std::flush(std::cout);
+
+        std::string line;
+        if (!std::getline(std::cin, line)) {
+            break;
+        }
+
+        std::string trimmed = line;
+        trimmed.erase(0, trimmed.find_first_not_of(" \t\r\n"));
+        trimmed.erase(trimmed.find_last_not_of(" \t\r\n") + 1);
+
+        if (openBraces == 0 && (trimmed == "khroj;" || trimmed == "exit;")) {
+            break;
+        }
+
+        multiLineBuffer += line + "\n";
+
+        for (char c : line) {
+            if (c == '{') openBraces++;
+            else if (c == '}') openBraces--;
+        }
+        if (openBraces < 0) openBraces = 0;
+
+        if (openBraces > 0) {
+            continue;
+        }
+
+        std::string candidateCode = accumulatedCode + multiLineBuffer;
+
+        try {
+            Lexer lexer(candidateCode);
+            auto tokens = lexer.tokenize();
+
+            Parser parser(std::move(tokens));
+            parser.currentDir = std::filesystem::current_path().string();
+            auto program = parser.parse();
+
+            Sema sema;
+            sema.analyze(program);
+
+            Codegen codegen;
+            codegen.generate(program);
+
+            codegen.runJIT();
+
+            accumulatedCode = candidateCode;
+            multiLineBuffer = "";
+        } catch (const std::exception& e) {
+            std::cerr << "[chkoupi khta9] " << e.what() << "\n";
+            multiLineBuffer = "";
+            openBraces = 0;
+        }
+    }
+}
+
 int main(int argc, char** argv) {
-    if (argc < 2) { printUsage(argv[0]); return 1; }
+    if (argc < 2) {
+        runREPL();
+        return 0;
+    }
 
     std::string srcPath = argv[1];
     bool emitIR  = false;

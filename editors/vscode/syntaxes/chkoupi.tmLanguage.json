@@ -1,0 +1,111 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Chkoupi",
+    "patterns": [
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "#strings"
+        },
+        {
+            "include": "#numbers"
+        },
+        {
+            "include": "#keywords"
+        },
+        {
+            "include": "#types"
+        }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.double-slash.dz",
+                    "match": "//.*$"
+                },
+                {
+                    "name": "comment.block.dz",
+                    "begin": "/\\*",
+                    "end": "\\*/"
+                }
+            ]
+        },
+        "strings": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.dz",
+                    "begin": "\"",
+                    "end": "\"",
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.dz",
+                            "match": "\\\\."
+                        }
+                    ]
+                },
+                {
+                    "name": "string.quoted.single.dz",
+                    "begin": "'",
+                    "end": "'",
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.dz",
+                            "match": "\\\\."
+                        }
+                    ]
+                }
+            ]
+        },
+        "numbers": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.float.dz",
+                    "match": "\\b\\d+\\.\\d+\\b"
+                },
+                {
+                    "name": "constant.numeric.integer.dz",
+                    "match": "\\b\\d+\\b"
+                }
+            ]
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.control.dz",
+                    "match": "\\b(idha|idha_mknch|ab9a_dor|dor|a7bss|kml|bdl|khyr|jarb|ila_ghalt|raja3|jibli)\\b"
+                },
+                {
+                    "name": "keyword.other.dz",
+                    "match": "\\b(dir|dima|dalla|9aleb|had|kssr)\\b"
+                },
+                {
+                    "name": "support.function.builtin.dz",
+                    "match": "\\b(ektb|a9ra|tool)\\b"
+                },
+                {
+                    "name": "keyword.operator.logical.dz",
+                    "match": "\\b(w|wla|machi)\\b"
+                },
+                {
+                    "name": "constant.language.boolean.dz",
+                    "match": "\\b(sa7|ghalt)\\b"
+                }
+            ]
+        },
+        "types": {
+            "patterns": [
+                {
+                    "name": "storage.type.dz",
+                    "match": "\\b(tabi3i|3ouchri|5iyar|fargh|7arf|nass|jadwl)\\b"
+                },
+                {
+                    "name": "entity.name.type.dz",
+                    "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+                }
+            ]
+        }
+    },
+    "scopeName": "source.dz"
+}

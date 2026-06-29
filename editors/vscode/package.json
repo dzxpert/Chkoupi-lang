@@ -1,0 +1,26 @@
+{
+    "name": "chkoupi-lang",
+    "displayName": "Chkoupi-lang",
+    "description": "Syntax highlighting and language support for Chkoupi-lang",
+    "version": "1.0.0",
+    "publisher": "dzxpert",
+    "engines": {
+        "vscode": "^1.60.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "chkoupi",
+            "aliases": ["Chkoupi", "chkoupi"],
+            "extensions": [".dz"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "chkoupi",
+            "scopeName": "source.dz",
+            "path": "./syntaxes/chkoupi.tmLanguage.json"
+        }]
+    }
+}

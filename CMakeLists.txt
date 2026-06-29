@@ -59,3 +59,6 @@ if(EXISTS "${VS2022_DIA}/diaguids.lib")
 else()
     message(WARNING "VS2022 DIA SDK not found at: ${VS2022_DIA}")
 endif()
+
+# ── VS Code Extension Installer ────────────────────────────────
+add_executable(chkoupi-vscode-installer editors/vscode/installer/main.cpp)

@@ -99,6 +99,71 @@ def run_tests():
             failed += 1
             errors.append(f"{test_name}: crashed/timed out: {ex}")
             
+    # ── REPL tests ───────────────────────────────────────────────────────────────
+    print("Running REPL integration tests...")
+    repl_tests = [
+        {
+            "name": "repl_basic",
+            "inputs": [
+                "dir a = 12;",
+                'ektb("a=%lld\\n", a);',
+                "khroj;"
+            ],
+            "expected_stdout": "a=12"
+        },
+        {
+            "name": "repl_multiline",
+            "inputs": [
+                "dalla add(x: tabi3i, y: tabi3i) {",
+                "    raja3 x + y;",
+                "}",
+                'ektb("sum=%lld\\n", add(3, 4));',
+                "khroj;"
+            ],
+            "expected_stdout": "sum=7"
+        },
+        {
+            "name": "repl_error_recovery",
+            "inputs": [
+                "dir a = 12",
+                "dir b = 34;",
+                'ektb("b=%lld\\n", b);',
+                "khroj;"
+            ],
+            "expected_stdout": "b=34",
+            "expected_err_contains": "[chkoupi khta9]"
+        }
+    ]
+
+    for t in repl_tests:
+        test_name = t["name"]
+        try:
+            input_data = "\n".join(t["inputs"]) + "\n"
+            res = subprocess.run([binary_path], input=input_data, capture_output=True, text=True, timeout=5)
+            
+            actual_stdout = res.stdout.replace('\r\n', '\n')
+            actual_stderr = res.stderr.replace('\r\n', '\n')
+            
+            stdout_ok = t["expected_stdout"] in actual_stdout
+            stderr_ok = "expected_err_contains" not in t or t["expected_err_contains"] in actual_stderr or t["expected_err_contains"] in actual_stdout
+
+            if stdout_ok and stderr_ok:
+                print(f"PASS  {test_name}")
+                passed += 1
+            else:
+                print(f"FAIL  {test_name}")
+                failed += 1
+                err_msg = f"{test_name} failed:\n"
+                if not stdout_ok:
+                    err_msg += f"  expected stdout to contain: {t['expected_stdout']}\n  actual stdout:\n{actual_stdout}\n"
+                if not stderr_ok:
+                    err_msg += f"  expected error to contain: {t['expected_err_contains']}\n  actual stderr:\n{actual_stderr}\n"
+                errors.append(err_msg)
+        except Exception as ex:
+            print(f"FAIL  {test_name}  (crashed/timed out: {ex})")
+            failed += 1
+            errors.append(f"{test_name}: crashed/timed out: {ex}")
+            
     # ── Summary ──────────────────────────────────────────────────────────────────
     print("========================================")
     total = passed + failed

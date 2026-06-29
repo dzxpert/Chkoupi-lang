@@ -15,7 +15,7 @@ public:
     void generate(const Program& prog);
     void dumpIR() const;
     void writeObjectFile(const std::string& path) const;
-    void runJIT();   // JIT compile + execute (default mode)
+    void runJIT(bool exitOnComplete = true);   // JIT compile + execute (default mode)
 
 private:
     llvm::LLVMContext                        ctx;

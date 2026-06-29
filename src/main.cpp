@@ -93,7 +93,7 @@ static void runREPL() {
             Codegen codegen;
             codegen.generate(program);
 
-            codegen.runJIT();
+            codegen.runJIT(false);
 
             accumulatedCode = candidateCode;
             multiLineBuffer = "";

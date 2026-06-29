@@ -291,7 +291,7 @@ void Codegen::dumpIR() const {
 }
 
 // ── JIT execution ─────────────────────────────────────────────────────────────
-void Codegen::runJIT() {
+void Codegen::runJIT(bool exitOnComplete) {
     // MCJIT takes ownership of the module — move it out
     std::string errStr;
     llvm::ExecutionEngine* ee =
@@ -312,7 +312,9 @@ void Codegen::runJIT() {
 
     int exitCode = mainFn();
     delete ee;
-    std::exit(exitCode);
+    if (exitOnComplete) {
+        std::exit(exitCode);
+    }
 }
 
 void Codegen::writeObjectFile(const std::string& path) const {
